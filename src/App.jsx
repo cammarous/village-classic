@@ -220,7 +220,7 @@ function HomePage({ data, countdown }) {
           <img
             src={data.logoUrl}
             alt="Village Classic Logo"
-            style={{ height: 160, marginBottom: 16, objectFit: "contain" }}
+            style={{ height: 160, marginBottom: 16, objectFit: "contain", mixBlendMode: "multiply" }}
           />
         )}
         <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: "clamp(28px, 6vw, 52px)", margin: "0 0 8px", color: COLORS.cream }}>The Village Classic</h1>
