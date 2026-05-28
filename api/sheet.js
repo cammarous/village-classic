@@ -19,10 +19,14 @@ async function fetchDriveFiles() {
   let pageToken = null;
 
   do {
-    let url = `https://www.googleapis.com/drive/v3/files?q='${DRIVE_FOLDER_ID}'+in+parents+and+trashed=false&fields=nextPageToken,files(id,name)&pageSize=100&key=${API_KEY}`;
+    const q = encodeURIComponent(`'${DRIVE_FOLDER_ID}' in parents and trashed=false`);
+    let url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=nextPageToken,files(id,name)&pageSize=100&key=${API_KEY}`;
     if (pageToken) url += `&pageToken=${pageToken}`;
     const res = await fetch(url);
-    if (!res.ok) throw new Error(`Drive fetch failed: ${res.status}`);
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Drive fetch failed: ${res.status} — ${body}`);
+    }
     const data = await res.json();
     files = files.concat(data.files || []);
     pageToken = data.nextPageToken || null;
