@@ -684,7 +684,18 @@ export default function App() {
   useEffect(() => {
     fetch("/api/sheet")
       .then((r) => r.json())
-      .then((d) => { setData(d); setLoading(false); })
+      .then((d) => {
+        if (d.error) throw new Error(d.error);
+        setData({
+          players: d.players || [],
+          articles: d.articles || [],
+          courses: d.courses || [],
+          history: d.history || [],
+          historyPhotos: d.historyPhotos || {},
+          logoUrl: d.logoUrl || null,
+        });
+        setLoading(false);
+      })
       .catch((e) => { setError(e.message); setLoading(false); });
   }, []);
 
