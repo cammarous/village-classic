@@ -56,7 +56,7 @@ export default async function handler(req, res) {
       const thumbUrl = `https://drive.google.com/thumbnail?id=${file.id}&sz=w400`;
 
       if (name.includes("Village_Classic_2026_Logo")) {
-        logoUrl = `https://drive.google.com/thumbnail?id=${file.id}&sz=w300`;
+        logoUrl = `https://drive.google.com/uc?export=view&id=${file.id}`;
         continue;
       }
 
@@ -76,7 +76,7 @@ export default async function handler(req, res) {
 
     // Fallback logo if not found in Drive
     if (!logoUrl) {
-      logoUrl = "https://drive.google.com/thumbnail?id=1TeG2PH0241YAFjNfGuOotE9jD0-eXW5n&sz=w300";
+      logoUrl = "https://drive.google.com/uc?export=view&id=1TeG2PH0241YAFjNfGuOotE9jD0-eXW5n";
     }
 
     // ── Parse Players tab ──────────────────────────────────────────────────────
