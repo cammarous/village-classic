@@ -701,6 +701,18 @@ export default function App() {
 
   return (
     <div style={{ minHeight: "100vh", background: COLORS.bg, fontFamily: "DM Sans, sans-serif" }}>
+      {/* Global styles */}
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@400;500;600&display=swap');
+        * { box-sizing: border-box; }
+        .desktop-nav { display: none !important; }
+        .hamburger { display: flex !important; }
+        @media (min-width: 768px) {
+          .desktop-nav { display: flex !important; }
+          .hamburger { display: none !important; }
+        }
+      `}</style>
+
       {/* Header */}
       <header style={{ background: `linear-gradient(90deg, ${COLORS.bgCard} 0%, #3a1f08 100%)`, borderBottom: `1px solid ${COLORS.border}`, padding: "0 20px", position: "sticky", top: 0, zIndex: 100 }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 60 }}>
@@ -747,18 +759,6 @@ export default function App() {
           </div>
         )}
       </header>
-
-      {/* Responsive nav styles */}
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@400;500;600&display=swap');
-        * { box-sizing: border-box; }
-        .desktop-nav { display: none !important; }
-        .hamburger { display: flex !important; }
-        @media (min-width: 768px) {
-          .desktop-nav { display: flex !important; }
-          .hamburger { display: none !important; }
-        }
-      `}</style>
 
       {/* Content */}
       <main style={{ maxWidth: 1200, margin: "0 auto", padding: "32px 16px" }}>
