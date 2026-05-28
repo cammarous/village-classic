@@ -217,11 +217,11 @@ function HomePage({ data, countdown }) {
       {/* Hero / Countdown */}
       <div style={{ textAlign: "center", marginBottom: 40, padding: "40px 20px", background: `linear-gradient(180deg, #3a1f08 0%, ${COLORS.bg} 100%)`, borderRadius: 16, border: `1px solid ${COLORS.border}` }}>
         {data.logoUrl && (
-          <div style={{ width: 180, height: 180, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}>
+          <div style={{ width: 160, height: 160, borderRadius: "50%", overflow: "hidden", margin: "0 auto 16px", boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}>
             <img
               src={data.logoUrl}
               alt="Village Classic Logo"
-              style={{ height: 170, width: 170, objectFit: "contain", borderRadius: "50%" }}
+              style={{ width: "116%", height: "116%", objectFit: "cover", marginLeft: "-8%", marginTop: "-8%" }}
             />
           </div>
         )}
