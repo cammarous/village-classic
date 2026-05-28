@@ -54,10 +54,10 @@ export default async function handler(req, res) {
       const thumbUrl = `https://drive.google.com/thumbnail?id=${file.id}&sz=w400`;
 
       if (name.includes("Village_Classic_2026_Logo")) {
-        logoUrl = `https://drive.google.com/uc?export=view&id=${file.id}`;
+        logoUrl = `https://drive.google.com/thumbnail?id=${file.id}&sz=w400`;
         continue;
       }
-      const yearMatch = name.match(/^(\d{4})\s/);
+      const yearMatch = name.match(/^(\d{4})[\s_]/);
       if (yearMatch) {
         const year = yearMatch[1];
         if (!historyPhotos[year]) historyPhotos[year] = [];
@@ -69,7 +69,7 @@ export default async function handler(req, res) {
     }
 
     if (!logoUrl) {
-      logoUrl = "https://drive.google.com/uc?export=view&id=1TeG2PH0241YAFjNfGuOotE9jD0-eXW5n";
+      logoUrl = `https://drive.google.com/thumbnail?id=1TeG2PH0241YAFjNfGuOotE9jD0-eXW5n&sz=w400`;
     }
 
     // ── Parse Players tab (Name, Handicap, Description only) ──────────────────
