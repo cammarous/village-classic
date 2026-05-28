@@ -217,11 +217,13 @@ function HomePage({ data, countdown }) {
       {/* Hero / Countdown */}
       <div style={{ textAlign: "center", marginBottom: 40, padding: "40px 20px", background: `linear-gradient(180deg, #3a1f08 0%, ${COLORS.bg} 100%)`, borderRadius: 16, border: `1px solid ${COLORS.border}` }}>
         {data.logoUrl && (
-          <img
-            src={data.logoUrl}
-            alt="Village Classic Logo"
-            style={{ height: 160, marginBottom: 16, objectFit: "contain", mixBlendMode: "multiply" }}
-          />
+          <div style={{ width: 180, height: 180, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}>
+            <img
+              src={data.logoUrl}
+              alt="Village Classic Logo"
+              style={{ height: 170, width: 170, objectFit: "contain", borderRadius: "50%" }}
+            />
+          </div>
         )}
         <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: "clamp(28px, 6vw, 52px)", margin: "0 0 8px", color: COLORS.cream }}>The Village Classic</h1>
         <div style={{ color: COLORS.tan, fontSize: 18, marginBottom: 24 }}>St. George, Utah — September 3–7, 2026</div>
