@@ -16,7 +16,6 @@ async function fetchSheetTab(tabName) {
 async function fetchDriveFiles() {
   let files = [];
   let pageToken = null;
-
   do {
     const q = encodeURIComponent(`'${DRIVE_FOLDER_ID}' in parents and trashed=false`);
     let url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=nextPageToken,files(id,name)&pageSize=100&key=${API_KEY}`;
@@ -30,7 +29,6 @@ async function fetchDriveFiles() {
     files = files.concat(data.files || []);
     pageToken = data.nextPageToken || null;
   } while (pageToken);
-
   return files;
 }
 
@@ -38,7 +36,7 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
 
   try {
-    const [playersRaw, articlesRaw, coursesRaw, historyRaw, driveFiles] = await Promise.all([
+    const [playersRaw, articlesRaw, scoresRaw, historyRaw, driveFiles] = await Promise.all([
       fetchSheetTab("Players"),
       fetchSheetTab("Articles"),
       fetchSheetTab("Courses"),
@@ -59,8 +57,6 @@ export default async function handler(req, res) {
         logoUrl = `https://drive.google.com/uc?export=view&id=${file.id}`;
         continue;
       }
-
-      // History photo: filename starts with 4-digit year
       const yearMatch = name.match(/^(\d{4})\s/);
       if (yearMatch) {
         const year = yearMatch[1];
@@ -68,26 +64,61 @@ export default async function handler(req, res) {
         historyPhotos[year].push(thumbUrl);
         continue;
       }
-
-      // Player photo: filename is first name only (e.g. "Cameron.jpg")
       const firstName = name.replace(/\.[^/.]+$/, "");
       playerPhotos[firstName] = `https://drive.google.com/thumbnail?id=${file.id}&sz=w200`;
     }
 
-    // Fallback logo if not found in Drive
     if (!logoUrl) {
       logoUrl = "https://drive.google.com/uc?export=view&id=1TeG2PH0241YAFjNfGuOotE9jD0-eXW5n";
     }
 
-    // ── Parse Players tab ──────────────────────────────────────────────────────
+    // ── Parse Players tab (Name, Handicap, Description only) ──────────────────
     const playerRows = playersRaw.slice(1);
-    const players = playerRows.map((row) => {
+    const playerMeta = {}; // { "Cameron Marous": { handicap, description, photo } }
+    playerRows.forEach((row) => {
       const name = row[0] || "";
+      if (!name) return;
       const handicap = parseFloat(row[1]) || 0;
       const description = row[2] || "";
-      const scores = row.slice(3).map((s) => (s !== "" && s !== undefined ? parseFloat(s) : null)).filter((s) => s !== null);
       const firstName = name.split(" ")[0];
-      return { name, handicap, description, scores, photo: playerPhotos[firstName] || null };
+      playerMeta[name] = { handicap, description, photo: playerPhotos[firstName] || null };
+    });
+
+    // ── Parse Courses tab (Player, Score — newest rows = most recent) ──────────
+    // Row 0 = header: Player, Score
+    const scoreRows = scoresRaw.slice(1).filter((row) => row[0] && row[1]);
+
+    // Group all scores by player name
+    const scoresByPlayer = {}; // { "Cameron Marous": [76, 78, 74, ...] }
+    scoreRows.forEach((row) => {
+      const name = row[0].trim();
+      const score = parseFloat(row[1]);
+      if (!name || isNaN(score)) return;
+      if (!scoresByPlayer[name]) scoresByPlayer[name] = [];
+      scoresByPlayer[name].push(score);
+    });
+
+    // Build players array — merge playerMeta + scores
+    const players = Object.keys(playerMeta).map((name) => ({
+      name,
+      handicap: playerMeta[name].handicap,
+      description: playerMeta[name].description,
+      photo: playerMeta[name].photo,
+      scores: scoresByPlayer[name] || [],
+    }));
+
+    // Recent rounds — last 5 rows of Courses tab (true insertion order)
+    const recentRounds = scoreRows.slice(-5).reverse().map((row) => {
+      const name = row[0].trim();
+      const score = parseFloat(row[1]);
+      const meta = playerMeta[name] || { handicap: 0, description: "", photo: null };
+      const target = 72 + meta.handicap + 3;
+      return {
+        playerName: name,
+        score,
+        diff: score - target,
+        photo: meta.photo,
+      };
     });
 
     // ── Parse Articles tab ─────────────────────────────────────────────────────
@@ -99,14 +130,6 @@ export default async function handler(req, res) {
       body: row[3] || "",
     })).reverse();
 
-    // ── Parse Courses tab ──────────────────────────────────────────────────────
-    const courseRows = coursesRaw.slice(1);
-    const courses = courseRows.map((row) => ({
-      course: row[0] || "",
-      par: row[1] || "",
-      date: row[2] || "",
-    }));
-
     // ── Parse History tab ──────────────────────────────────────────────────────
     const historyRows = historyRaw.slice(1);
     const history = historyRows.map((row) => ({
@@ -117,7 +140,6 @@ export default async function handler(req, res) {
       storyline: row[4] || "",
     })).sort((a, b) => parseInt(b.year) - parseInt(a.year));
 
-    // Add years that have photos but no sheet row
     const sheetYears = new Set(history.map((h) => h.year));
     for (const year of Object.keys(historyPhotos)) {
       if (!sheetYears.has(year)) {
@@ -126,7 +148,7 @@ export default async function handler(req, res) {
     }
     history.sort((a, b) => parseInt(b.year) - parseInt(a.year));
 
-    res.status(200).json({ players, articles, courses, history, historyPhotos, logoUrl });
+    res.status(200).json({ players, articles, history, historyPhotos, logoUrl, recentRounds });
 
   } catch (err) {
     console.error("sheet.js error:", err);
