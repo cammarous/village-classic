@@ -209,14 +209,20 @@ function HomePage({ data, countdown }) {
     .sort((a, b) => a.avg - b.avg)
     .slice(0, 5);
 
-  const recentRounds = getRecentRounds(data.players);
+  const recentRounds = data.recentRounds || [];
   const latestArticle = data.articles[0];
 
   return (
     <div style={{ color: COLORS.cream }}>
       {/* Hero / Countdown */}
       <div style={{ textAlign: "center", marginBottom: 40, padding: "40px 20px", background: `linear-gradient(180deg, #3a1f08 0%, ${COLORS.bg} 100%)`, borderRadius: 16, border: `1px solid ${COLORS.border}` }}>
-        {data.logoUrl && <img src={data.logoUrl} alt="Village Classic Logo" style={{ height: 120, marginBottom: 16 }} />}
+        {data.logoUrl && (
+          <img
+            src={data.logoUrl}
+            alt="Village Classic Logo"
+            style={{ height: 160, marginBottom: 16, objectFit: "contain" }}
+          />
+        )}
         <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: "clamp(28px, 6vw, 52px)", margin: "0 0 8px", color: COLORS.cream }}>The Village Classic</h1>
         <div style={{ color: COLORS.tan, fontSize: 18, marginBottom: 24 }}>St. George, Utah — September 3–7, 2026</div>
         <div style={{ display: "flex", justifyContent: "center", gap: 16, flexWrap: "wrap" }}>
@@ -262,18 +268,21 @@ function HomePage({ data, countdown }) {
           </div>
         </div>
 
-        {/* Recent Rounds */}
+        {/* Recent Rounds — from API (last 5 rows of Courses tab) */}
         <div>
           <h2 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 14, fontSize: 20 }}>🕐 Recent Rounds</h2>
           <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 12, overflow: "hidden" }}>
             {recentRounds.length === 0 ? (
               <div style={{ padding: 20, color: COLORS.creamDim, textAlign: "center" }}>No rounds recorded yet</div>
             ) : recentRounds.map((r, i) => (
-              <div key={r.player.name} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderBottom: i < recentRounds.length - 1 ? `1px solid ${COLORS.border}` : "none" }}>
-                {r.player.photo && <img src={r.player.photo} alt={r.player.name} style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover" }} />}
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderBottom: i < recentRounds.length - 1 ? `1px solid ${COLORS.border}` : "none" }}>
+                {r.photo ? (
+                  <img src={r.photo} alt={r.playerName} style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover" }} />
+                ) : (
+                  <div style={{ width: 32, height: 32, borderRadius: "50%", background: COLORS.bgCardLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>⛳</div>
+                )}
                 <div style={{ flex: 1 }}>
-                  <div style={{ color: COLORS.cream, fontSize: 14, fontWeight: 600 }}>{r.player.name}</div>
-                  <div style={{ color: COLORS.creamDim, fontSize: 12 }}>R{r.roundNum}</div>
+                  <div style={{ color: COLORS.cream, fontSize: 14, fontWeight: 600 }}>{r.playerName}</div>
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <div style={{ color: COLORS.cream, fontWeight: 700 }}>{r.score}</div>
@@ -675,7 +684,7 @@ function HistoryPage({ history, historyPhotos }) {
 // ─── App Shell ────────────────────────────────────────────────────────────────
 export default function App() {
   const [activeTab, setActiveTab] = useState("home");
-  const [data, setData] = useState({ players: [], articles: [], courses: [], history: [], historyPhotos: {}, logoUrl: null });
+  const [data, setData] = useState({ players: [], articles: [], history: [], historyPhotos: {}, logoUrl: null, recentRounds: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -689,10 +698,10 @@ export default function App() {
         setData({
           players: d.players || [],
           articles: d.articles || [],
-          courses: d.courses || [],
           history: d.history || [],
           historyPhotos: d.historyPhotos || {},
           logoUrl: d.logoUrl || null,
+          recentRounds: d.recentRounds || [],
         });
         setLoading(false);
       })
@@ -728,7 +737,6 @@ export default function App() {
       <header style={{ background: `linear-gradient(90deg, ${COLORS.bgCard} 0%, #3a1f08 100%)`, borderBottom: `1px solid ${COLORS.border}`, padding: "0 20px", position: "sticky", top: 0, zIndex: 100 }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 60 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={() => { setActiveTab("home"); setMenuOpen(false); }}>
-            {data.logoUrl && <img src={data.logoUrl} alt="Logo" style={{ height: 40 }} />}
             <span style={{ fontFamily: "Playfair Display, serif", color: COLORS.cream, fontSize: 18, fontWeight: 700 }}>The Village Classic</span>
           </div>
 
