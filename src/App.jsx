@@ -221,7 +221,7 @@ function HomePage({ data, countdown }) {
             <img
               src={data.logoUrl}
               alt="Village Classic Logo"
-              style={{ width: "116%", height: "116%", objectFit: "cover", marginLeft: "-8%", marginTop: "-8%" }}
+              style={{ width: "140%", height: "140%", objectFit: "cover", marginLeft: "-20%", marginTop: "-20%" }}
             />
           </div>
         )}
