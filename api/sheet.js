@@ -72,24 +72,51 @@ export default async function handler(req, res) {
       logoUrl = `https://drive.google.com/thumbnail?id=1TeG2PH0241YAFjNfGuOotE9jD0-eXW5n&sz=w400`;
     }
 
-    // ── Parse Players tab (Name, Handicap, Description only) ──────────────────
+    // ── Parse Players tab ──────────────────────────────────────────────────────
+    // Header row: Name, Handicap, Description, 2021, 2022, 2023, 2024, 2025, 2026
+    // Year columns start at index 3
+    const YEAR_COLS = ["2021", "2022", "2023", "2024", "2025", "2026"];
+    const headerRow = playersRaw[0] || [];
+
+    // Find where each year column is in the header (flexible — works even if columns shift)
+    const yearIndices = {};
+    YEAR_COLS.forEach((yr) => {
+      const idx = headerRow.indexOf(yr);
+      if (idx !== -1) yearIndices[yr] = idx;
+    });
+
     const playerRows = playersRaw.slice(1);
-    const playerMeta = {}; // { "Cameron Marous": { handicap, description, photo } }
+    const playerMeta = {};
+
     playerRows.forEach((row) => {
       const name = row[0] || "";
       if (!name) return;
       const handicap = parseFloat(row[1]) || 0;
       const description = row[2] || "";
       const firstName = name.split(" ")[0];
-      playerMeta[name] = { handicap, description, photo: playerPhotos[firstName] || null };
+
+      // Build years object: { "2021": "Attended", "2022": "W", "2023": "L", ... }
+      const years = {};
+      YEAR_COLS.forEach((yr) => {
+        const idx = yearIndices[yr];
+        if (idx !== undefined) {
+          years[yr] = (row[idx] || "").trim();
+        }
+      });
+
+      playerMeta[name] = {
+        handicap,
+        description,
+        photo: playerPhotos[firstName] || null,
+        years,
+        attending2026: years["2026"] === "Attending",
+      };
     });
 
     // ── Parse Courses tab (Player, Score — newest rows = most recent) ──────────
-    // Row 0 = header: Player, Score
     const scoreRows = scoresRaw.slice(1).filter((row) => row[0] && row[1]);
 
-    // Group all scores by player name
-    const scoresByPlayer = {}; // { "Cameron Marous": [76, 78, 74, ...] }
+    const scoresByPlayer = {};
     scoreRows.forEach((row) => {
       const name = row[0].trim();
       const score = parseFloat(row[1]);
@@ -104,6 +131,8 @@ export default async function handler(req, res) {
       handicap: playerMeta[name].handicap,
       description: playerMeta[name].description,
       photo: playerMeta[name].photo,
+      years: playerMeta[name].years,
+      attending2026: playerMeta[name].attending2026,
       scores: scoresByPlayer[name] || [],
     }));
 
