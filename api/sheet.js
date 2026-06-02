@@ -64,8 +64,9 @@ export default async function handler(req, res) {
         historyPhotos[year].push(thumbUrl);
         continue;
       }
-      const firstName = name.replace(/\.[^/.]+$/, "");
-      playerPhotos[firstName] = `https://drive.google.com/thumbnail?id=${file.id}&sz=w200`;
+      // Strip extension — key is the full filename without extension (e.g. "Ian Zaferakis" or "Cameron")
+      const photoKey = name.replace(/\.[^/.]+$/, "");
+      playerPhotos[photoKey] = `https://drive.google.com/thumbnail?id=${file.id}&sz=w200`;
     }
 
     if (!logoUrl) {
@@ -104,10 +105,13 @@ export default async function handler(req, res) {
         }
       });
 
+      // Try full name first (e.g. "Ian Zaferakis"), fall back to first name (e.g. "Cameron")
+      const photo = playerPhotos[name] || playerPhotos[firstName] || null;
+
       playerMeta[name] = {
         handicap,
         description,
-        photo: playerPhotos[firstName] || null,
+        photo,
         years,
         attending2026: years["2026"] === "Attending",
       };
