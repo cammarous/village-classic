@@ -36,6 +36,9 @@ const PACKING_LIST = [
   "Casual Shoes", "Jackets", "Deodorant", "Toothpaste", "Socks", "Underwear",
 ];
 
+// Trip years in chronological order — 2021 had no team competition
+const TRIP_YEARS = ["2021", "2022", "2023", "2024", "2025", "2026"];
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function getTarget(handicap) {
   return 72 + handicap + 3;
@@ -48,26 +51,37 @@ function getAvgDiff(player) {
   return diffs.reduce((a, b) => a + b, 0) / diffs.length;
 }
 
-function getRecentRounds(players) {
-  // For each player, grab their LAST non-null score + the index it was at
-  const rounds = [];
-  players.forEach((player) => {
-    if (!player.scores || player.scores.length === 0) return;
-    const lastScore = player.scores[player.scores.length - 1];
-    const roundNum = player.scores.length;
-    const target = getTarget(player.handicap);
-    const diff = lastScore - target;
-    rounds.push({ player, score: lastScore, roundNum, diff });
-  });
-  // Sort by players who have played most recently (most rounds = most recent)
-  rounds.sort((a, b) => b.roundNum - a.roundNum);
-  return rounds.slice(0, 5);
-}
-
 function formatDiff(diff) {
   if (diff === null) return "—";
   if (diff === 0) return "E";
   return diff > 0 ? `+${diff.toFixed(1)}` : diff.toFixed(1);
+}
+
+// Build a readable trip history string for a player
+function getTripHistory(player) {
+  if (!player.years) return [];
+  return TRIP_YEARS
+    .map((yr) => {
+      const val = player.years[yr] || "";
+      if (!val) return null;
+      let label, color, icon;
+      if (yr === "2021") {
+        // 2021 had no team competition — just "Attended"
+        label = "Attended"; icon = "⛳"; color = COLORS.creamDim;
+      } else if (val === "W") {
+        label = "Won"; icon = "🏆"; color = "#4caf50";
+      } else if (val === "L") {
+        label = "Lost"; icon = "📉"; color = "#e57373";
+      } else if (val === "Attending") {
+        label = "Attending"; icon = "✈️"; color = COLORS.tan;
+      } else if (val === "Attended") {
+        label = "Attended"; icon = "⛳"; color = COLORS.creamDim;
+      } else {
+        label = val; icon = "⛳"; color = COLORS.creamDim;
+      }
+      return { year: yr, label, icon, color, raw: val };
+    })
+    .filter(Boolean);
 }
 
 function useCountdown() {
@@ -94,14 +108,16 @@ function useCountdown() {
 // ─── Sub-components ──────────────────────────────────────────────────────────
 function PlayerCard({ player, onClick }) {
   const avg = getAvgDiff(player);
+  const isAttending = player.attending2026;
   const diffColor = avg === null ? COLORS.creamDim : avg <= 0 ? "#4caf50" : avg <= 5 ? COLORS.tan : "#e57373";
+  const tripsPlayed = TRIP_YEARS.filter((yr) => player.years?.[yr] && player.years[yr] !== "").length;
 
   return (
     <div
       onClick={onClick}
       style={{
         background: COLORS.bgCard,
-        border: `1px solid ${COLORS.border}`,
+        border: `1px solid ${isAttending ? COLORS.border : "#3a2010"}`,
         borderRadius: 12,
         padding: 16,
         cursor: "pointer",
@@ -109,13 +125,33 @@ function PlayerCard({ player, onClick }) {
         display: "flex",
         flexDirection: "column",
         gap: 10,
+        opacity: isAttending ? 1 : 0.45,
+        filter: isAttending ? "none" : "grayscale(50%)",
+        position: "relative",
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = `0 6px 20px rgba(193,68,14,0.3)`; }}
+      onMouseEnter={(e) => {
+        if (isAttending) {
+          e.currentTarget.style.transform = "translateY(-3px)";
+          e.currentTarget.style.boxShadow = `0 6px 20px rgba(193,68,14,0.3)`;
+        }
+      }}
       onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}
     >
+      {/* "Not Attending" badge */}
+      {!isAttending && (
+        <div style={{
+          position: "absolute", top: 10, right: 10,
+          background: "#3a1506", border: `1px solid ${COLORS.border}`,
+          borderRadius: 4, padding: "2px 7px", fontSize: 10,
+          color: COLORS.creamDim, textTransform: "uppercase", letterSpacing: 0.8,
+        }}>
+          Alumni
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
         {player.photo ? (
-          <img src={player.photo} alt={player.name} style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", border: `2px solid ${COLORS.orange}` }} />
+          <img src={player.photo} alt={player.name} style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", border: `2px solid ${isAttending ? COLORS.orange : COLORS.border}` }} />
         ) : (
           <div style={{ width: 56, height: 56, borderRadius: "50%", background: COLORS.bgCardLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, border: `2px solid ${COLORS.border}` }}>
             ⛳
@@ -123,7 +159,7 @@ function PlayerCard({ player, onClick }) {
         )}
         <div>
           <div style={{ fontFamily: "Playfair Display, serif", color: COLORS.cream, fontSize: 16, fontWeight: 700 }}>{player.name}</div>
-          <div style={{ color: COLORS.creamDim, fontSize: 13 }}>HCP {player.handicap}</div>
+          <div style={{ color: COLORS.creamDim, fontSize: 13 }}>HCP {player.handicap} · {tripsPlayed} trip{tripsPlayed !== 1 ? "s" : ""}</div>
           <div style={{ color: diffColor, fontSize: 13, fontWeight: 600 }}>
             {avg === null ? "No rounds yet" : `Avg: ${formatDiff(avg)} vs target`}
           </div>
@@ -151,15 +187,24 @@ function PlayerCard({ player, onClick }) {
 function PlayerProfile({ player, onBack }) {
   const avg = getAvgDiff(player);
   const target = getTarget(player.handicap);
+  const tripHistory = getTripHistory(player);
+  const isAttending = player.attending2026;
 
   return (
     <div style={{ color: COLORS.cream }}>
       <button onClick={onBack} style={{ background: "none", border: `1px solid ${COLORS.border}`, color: COLORS.tan, cursor: "pointer", padding: "6px 14px", borderRadius: 6, marginBottom: 20, fontSize: 14 }}>
         ← Back to Players
       </button>
+
+      {!isAttending && (
+        <div style={{ background: "#2a1506", border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "10px 16px", marginBottom: 16, color: COLORS.creamDim, fontSize: 13 }}>
+          🏛️ Village Classic Alumni — not attending 2026
+        </div>
+      )}
+
       <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 24, display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start" }}>
         {player.photo ? (
-          <img src={player.photo} alt={player.name} style={{ width: 120, height: 120, borderRadius: "50%", objectFit: "cover", border: `3px solid ${COLORS.orange}` }} />
+          <img src={player.photo} alt={player.name} style={{ width: 120, height: 120, borderRadius: "50%", objectFit: "cover", border: `3px solid ${isAttending ? COLORS.orange : COLORS.border}`, filter: isAttending ? "none" : "grayscale(40%)" }} />
         ) : (
           <div style={{ width: 120, height: 120, borderRadius: "50%", background: COLORS.bgCardLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 48, border: `3px solid ${COLORS.border}` }}>⛳</div>
         )}
@@ -179,6 +224,44 @@ function PlayerProfile({ player, onBack }) {
         </div>
       </div>
 
+      {/* Trip History */}
+      {tripHistory.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <h3 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 12 }}>🗓️ Trip History</h3>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            {tripHistory.map(({ year, label, icon, color }) => (
+              <div key={year} style={{
+                background: COLORS.bgCard,
+                border: `1px solid ${COLORS.border}`,
+                borderRadius: 10,
+                padding: "10px 16px",
+                textAlign: "center",
+                minWidth: 80,
+              }}>
+                <div style={{ color: COLORS.creamDim, fontSize: 12, marginBottom: 4 }}>{year}</div>
+                <div style={{ fontSize: 18, marginBottom: 2 }}>{icon}</div>
+                <div style={{ color, fontSize: 12, fontWeight: 600 }}>{label}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 10, display: "flex", gap: 16, flexWrap: "wrap" }}>
+            {/* Legend */}
+            {[
+              { icon: "🏆", label: "Won (team)", color: "#4caf50" },
+              { icon: "📉", label: "Lost (team)", color: "#e57373" },
+              { icon: "⛳", label: "Attended", color: COLORS.creamDim },
+              { icon: "✈️", label: "Attending 2026", color: COLORS.tan },
+            ].map(({ icon, label, color }) => (
+              <div key={label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <span style={{ fontSize: 13 }}>{icon}</span>
+                <span style={{ color, fontSize: 12 }}>{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Round History */}
       {player.scores && player.scores.length > 0 && (
         <div style={{ marginTop: 24 }}>
           <h3 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 12 }}>Round History</h3>
@@ -203,7 +286,9 @@ function PlayerProfile({ player, onBack }) {
 // ─── Pages ───────────────────────────────────────────────────────────────────
 
 function HomePage({ data, countdown }) {
+  // Home page top 5 — only attending players
   const sorted = [...data.players]
+    .filter((p) => p.attending2026)
     .map((p) => ({ ...p, avg: getAvgDiff(p) }))
     .filter((p) => p.avg !== null)
     .sort((a, b) => a.avg - b.avg)
@@ -248,9 +333,8 @@ function HomePage({ data, countdown }) {
         ))}
       </div>
 
-      {/* Top 5 + Recent Rounds — responsive grid */}
+      {/* Top 5 + Recent Rounds */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 24, marginBottom: 40 }}>
-        {/* Top 5 Draft Board */}
         <div>
           <h2 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 14, fontSize: 20 }}>🏆 Top 5 — Draft Board</h2>
           <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 12, overflow: "hidden" }}>
@@ -270,7 +354,6 @@ function HomePage({ data, countdown }) {
           </div>
         </div>
 
-        {/* Recent Rounds — from API (last 5 rows of Courses tab) */}
         <div>
           <h2 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 14, fontSize: 20 }}>🕐 Recent Rounds</h2>
           <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 12, overflow: "hidden" }}>
@@ -329,7 +412,10 @@ function HomePage({ data, countdown }) {
 }
 
 function DraftBoardPage({ players }) {
-  const sorted = [...players]
+  // Only show 2026 attending players on the draft board
+  const attendingPlayers = players.filter((p) => p.attending2026);
+
+  const sorted = [...attendingPlayers]
     .map((p) => ({ ...p, avg: getAvgDiff(p) }))
     .sort((a, b) => {
       if (a.avg === null && b.avg === null) return 0;
@@ -383,15 +469,37 @@ function PlayersPage({ players }) {
     return <PlayerProfile player={selected} onBack={() => setSelected(null)} />;
   }
 
+  // Split into attending and alumni
+  const attending = players.filter((p) => p.attending2026);
+  const alumni = players.filter((p) => !p.attending2026);
+
   return (
     <div style={{ color: COLORS.cream }}>
       <h1 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 6 }}>👤 Players</h1>
       <p style={{ color: COLORS.creamDim, marginBottom: 24, fontSize: 14 }}>Click a player card for full profile and round history.</p>
+
+      {/* 2026 Attending */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 16 }}>
-        {players.map((p) => (
+        {attending.map((p) => (
           <PlayerCard key={p.name} player={p} onClick={() => setSelected(p)} />
         ))}
       </div>
+
+      {/* Alumni divider */}
+      {alumni.length > 0 && (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "36px 0 20px" }}>
+            <div style={{ flex: 1, height: 1, background: COLORS.border }} />
+            <div style={{ color: COLORS.creamDim, fontSize: 13, textTransform: "uppercase", letterSpacing: 1.5, whiteSpace: "nowrap" }}>🏛️ Village Classic Alumni</div>
+            <div style={{ flex: 1, height: 1, background: COLORS.border }} />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 16 }}>
+            {alumni.map((p) => (
+              <PlayerCard key={p.name} player={p} onClick={() => setSelected(p)} />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -459,7 +567,6 @@ function ItineraryPage() {
         ))}
       </div>
 
-      {/* Alternative: static map links */}
       <div style={{ marginTop: 20, background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 16 }}>
         <div style={{ color: COLORS.tan, fontWeight: 700, marginBottom: 10 }}>📍 Quick Links</div>
         {COURSES.map((c) => (
@@ -497,7 +604,6 @@ function PointsPage() {
       <h1 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 6 }}>🏅 Points Tracker</h1>
       <p style={{ color: COLORS.creamDim, marginBottom: 24, fontSize: 14 }}>25 total points up for grabs. First team to 13 wins.</p>
 
-      {/* Scoreboard */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 32 }}>
         {[{ name: "Team John", score: totalJohn }, { name: "Team Brian", score: totalBrian }].map((team) => (
           <div key={team.name} style={{ background: COLORS.bgCard, border: `2px solid ${COLORS.border}`, borderRadius: 14, padding: 24, textAlign: "center" }}>
@@ -508,7 +614,6 @@ function PointsPage() {
         ))}
       </div>
 
-      {/* Events table */}
       <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 14, overflow: "hidden" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto auto", padding: "10px 16px", borderBottom: `1px solid ${COLORS.border}`, background: COLORS.bgCardLight, gap: 8 }}>
           <div style={{ color: COLORS.creamDim, fontSize: 11, textTransform: "uppercase" }}>Event</div>
@@ -539,7 +644,6 @@ function TripDetailsPage() {
       <p style={{ color: COLORS.creamDim, marginBottom: 24, fontSize: 14 }}>Everything you need to know before you go.</p>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 24 }}>
-        {/* Travel */}
         <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 20 }}>
           <h2 style={{ fontFamily: "Playfair Display, serif", color: COLORS.orangeLight, marginBottom: 14, fontSize: 18 }}>✈️ Travel</h2>
           <div style={{ color: COLORS.creamDim, fontSize: 14, lineHeight: 1.8 }}>
@@ -551,7 +655,6 @@ function TripDetailsPage() {
           </div>
         </div>
 
-        {/* Team info */}
         <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 20 }}>
           <h2 style={{ fontFamily: "Playfair Display, serif", color: COLORS.orangeLight, marginBottom: 14, fontSize: 18 }}>👥 Teams</h2>
           <div style={{ color: COLORS.creamDim, fontSize: 14, lineHeight: 1.8 }}>
@@ -563,7 +666,6 @@ function TripDetailsPage() {
           </div>
         </div>
 
-        {/* Packing list */}
         <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 20 }}>
           <h2 style={{ fontFamily: "Playfair Display, serif", color: COLORS.orangeLight, marginBottom: 14, fontSize: 18 }}>🧳 Packing List</h2>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 12px" }}>
@@ -628,13 +730,11 @@ function HistoryPage({ history, historyPhotos }) {
 
         return (
           <div key={entry.year} style={{ marginBottom: 48 }}>
-            {/* Year header */}
             <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
               <div style={{ fontFamily: "Playfair Display, serif", fontSize: 36, fontWeight: 700, color: COLORS.orangeLight }}>{entry.year}</div>
               {entry.location && <div style={{ color: COLORS.creamDim, fontSize: 16 }}>📍 {entry.location}</div>}
             </div>
 
-            {/* Champions */}
             {(entry.individualChampion || entry.teamChampion) && (
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
                 {entry.individualChampion && (
@@ -652,7 +752,6 @@ function HistoryPage({ history, historyPhotos }) {
               </div>
             )}
 
-            {/* Storyline */}
             <div style={{ marginBottom: photos.length > 0 ? 20 : 0 }}>
               {paragraphs.length > 0 ? (
                 paragraphs.map((p, i) => (
@@ -663,7 +762,6 @@ function HistoryPage({ history, historyPhotos }) {
               )}
             </div>
 
-            {/* Photos grid */}
             {photos.length > 0 && (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
                 {photos.map((url, i) => (
@@ -674,7 +772,6 @@ function HistoryPage({ history, historyPhotos }) {
               </div>
             )}
 
-            {/* Divider */}
             <div style={{ borderBottom: `1px solid ${COLORS.border}`, marginTop: 40 }} />
           </div>
         );
@@ -723,7 +820,6 @@ export default function App() {
 
   return (
     <div style={{ minHeight: "100vh", background: COLORS.bg, fontFamily: "DM Sans, sans-serif" }}>
-      {/* Global styles */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@400;500;600&display=swap');
         * { box-sizing: border-box; }
@@ -735,14 +831,12 @@ export default function App() {
         }
       `}</style>
 
-      {/* Header */}
       <header style={{ background: `linear-gradient(90deg, ${COLORS.bgCard} 0%, #3a1f08 100%)`, borderBottom: `1px solid ${COLORS.border}`, padding: "0 20px", position: "sticky", top: 0, zIndex: 100 }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 60 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={() => { setActiveTab("home"); setMenuOpen(false); }}>
             <span style={{ fontFamily: "Playfair Display, serif", color: COLORS.cream, fontSize: 18, fontWeight: 700 }}>The Village Classic</span>
           </div>
 
-          {/* Desktop nav — hidden on mobile via media-query-equivalent inline approach */}
           <nav style={{ display: "flex", gap: 4, flexWrap: "wrap" }} className="desktop-nav">
             {tabs.map((t) => (
               <button
@@ -755,7 +849,6 @@ export default function App() {
             ))}
           </nav>
 
-          {/* Hamburger */}
           <button
             onClick={() => setMenuOpen(!menuOpen)}
             style={{ background: "none", border: `1px solid ${COLORS.border}`, color: COLORS.cream, cursor: "pointer", padding: "6px 10px", borderRadius: 6, fontSize: 20 }}
@@ -765,7 +858,6 @@ export default function App() {
           </button>
         </div>
 
-        {/* Mobile dropdown */}
         {menuOpen && (
           <div style={{ background: COLORS.bgCard, borderTop: `1px solid ${COLORS.border}`, padding: "8px 0" }}>
             {tabs.map((t) => (
@@ -781,7 +873,6 @@ export default function App() {
         )}
       </header>
 
-      {/* Content */}
       <main style={{ maxWidth: 1200, margin: "0 auto", padding: "32px 16px" }}>
         {loading && (
           <div style={{ textAlign: "center", padding: 80, color: COLORS.creamDim }}>
