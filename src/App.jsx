@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 const TRIP_DATE = new Date("2026-09-03T16:00:00");
@@ -36,7 +36,6 @@ const PACKING_LIST = [
   "Casual Shoes", "Jackets", "Deodorant", "Toothpaste", "Socks", "Underwear",
 ];
 
-// Trip years in chronological order — 2021 had no team competition
 const TRIP_YEARS = ["2021", "2022", "2023", "2024", "2025", "2026"];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -57,7 +56,6 @@ function formatDiff(diff) {
   return diff > 0 ? `+${diff.toFixed(1)}` : diff.toFixed(1);
 }
 
-// Build a readable trip history string for a player
 function getTripHistory(player) {
   if (!player.years) return [];
   return TRIP_YEARS
@@ -66,7 +64,6 @@ function getTripHistory(player) {
       if (!val) return null;
       let label, color, icon;
       if (yr === "2021") {
-        // 2021 had no team competition — just "Attended"
         label = "Attended"; icon = "⛳"; color = COLORS.creamDim;
       } else if (val === "W") {
         label = "Won"; icon = "🏆"; color = "#4caf50";
@@ -137,7 +134,6 @@ function PlayerCard({ player, onClick }) {
       }}
       onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}
     >
-      {/* "Not Attending" badge */}
       {!isAttending && (
         <div style={{
           position: "absolute", top: 10, right: 10,
@@ -148,7 +144,6 @@ function PlayerCard({ player, onClick }) {
           Alumni
         </div>
       )}
-
       <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
         {player.photo ? (
           <img src={player.photo} alt={player.name} style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", border: `2px solid ${isAttending ? COLORS.orange : COLORS.border}` }} />
@@ -195,13 +190,11 @@ function PlayerProfile({ player, onBack }) {
       <button onClick={onBack} style={{ background: "none", border: `1px solid ${COLORS.border}`, color: COLORS.tan, cursor: "pointer", padding: "6px 14px", borderRadius: 6, marginBottom: 20, fontSize: 14 }}>
         ← Back to Players
       </button>
-
       {!isAttending && (
         <div style={{ background: "#2a1506", border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "10px 16px", marginBottom: 16, color: COLORS.creamDim, fontSize: 13 }}>
           🏛️ Village Classic Alumni — not attending 2026
         </div>
       )}
-
       <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 24, display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start" }}>
         {player.photo ? (
           <img src={player.photo} alt={player.name} style={{ width: 120, height: 120, borderRadius: "50%", objectFit: "cover", border: `3px solid ${isAttending ? COLORS.orange : COLORS.border}`, filter: isAttending ? "none" : "grayscale(40%)" }} />
@@ -223,21 +216,12 @@ function PlayerProfile({ player, onBack }) {
           )}
         </div>
       </div>
-
-      {/* Trip History */}
       {tripHistory.length > 0 && (
         <div style={{ marginTop: 24 }}>
           <h3 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 12 }}>🗓️ Trip History</h3>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {tripHistory.map(({ year, label, icon, color }) => (
-              <div key={year} style={{
-                background: COLORS.bgCard,
-                border: `1px solid ${COLORS.border}`,
-                borderRadius: 10,
-                padding: "10px 16px",
-                textAlign: "center",
-                minWidth: 80,
-              }}>
+              <div key={year} style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "10px 16px", textAlign: "center", minWidth: 80 }}>
                 <div style={{ color: COLORS.creamDim, fontSize: 12, marginBottom: 4 }}>{year}</div>
                 <div style={{ fontSize: 18, marginBottom: 2 }}>{icon}</div>
                 <div style={{ color, fontSize: 12, fontWeight: 600 }}>{label}</div>
@@ -245,7 +229,6 @@ function PlayerProfile({ player, onBack }) {
             ))}
           </div>
           <div style={{ marginTop: 10, display: "flex", gap: 16, flexWrap: "wrap" }}>
-            {/* Legend */}
             {[
               { icon: "🏆", label: "Won (team)", color: "#4caf50" },
               { icon: "📉", label: "Lost (team)", color: "#e57373" },
@@ -260,8 +243,6 @@ function PlayerProfile({ player, onBack }) {
           </div>
         </div>
       )}
-
-      {/* Round History */}
       {player.scores && player.scores.length > 0 && (
         <div style={{ marginTop: 24 }}>
           <h3 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 12 }}>Round History</h3>
@@ -286,7 +267,6 @@ function PlayerProfile({ player, onBack }) {
 // ─── Pages ───────────────────────────────────────────────────────────────────
 
 function HomePage({ data, countdown }) {
-  // Home page top 5 — only attending players
   const sorted = [...data.players]
     .filter((p) => p.attending2026)
     .map((p) => ({ ...p, avg: getAvgDiff(p) }))
@@ -299,15 +279,10 @@ function HomePage({ data, countdown }) {
 
   return (
     <div style={{ color: COLORS.cream }}>
-      {/* Hero / Countdown */}
       <div style={{ textAlign: "center", marginBottom: 40, padding: "40px 20px", background: `linear-gradient(180deg, #3a1f08 0%, ${COLORS.bg} 100%)`, borderRadius: 16, border: `1px solid ${COLORS.border}` }}>
         {data.logoUrl && (
           <div style={{ width: 160, height: 160, borderRadius: "50%", overflow: "hidden", margin: "0 auto 16px", boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}>
-            <img
-              src={data.logoUrl}
-              alt="Village Classic Logo"
-              style={{ width: "140%", height: "140%", objectFit: "cover", marginLeft: "-20%", marginTop: "-20%" }}
-            />
+            <img src={data.logoUrl} alt="Village Classic Logo" style={{ width: "140%", height: "140%", objectFit: "cover", marginLeft: "-20%", marginTop: "-20%" }} />
           </div>
         )}
         <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: "clamp(28px, 6vw, 52px)", margin: "0 0 8px", color: COLORS.cream }}>The Village Classic</h1>
@@ -322,7 +297,6 @@ function HomePage({ data, countdown }) {
         </div>
       </div>
 
-      {/* Teams callout */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 40 }}>
         {[{ name: "Team John", captain: "John Mullin", icon: "👑" }, { name: "Team Brian", captain: "Brian Dalidowicz", icon: "🔥" }].map((team) => (
           <div key={team.name} style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 20, textAlign: "center" }}>
@@ -333,7 +307,6 @@ function HomePage({ data, countdown }) {
         ))}
       </div>
 
-      {/* Top 5 + Recent Rounds */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 24, marginBottom: 40 }}>
         <div>
           <h2 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 14, fontSize: 20 }}>🏆 Top 5 — Draft Board</h2>
@@ -379,7 +352,6 @@ function HomePage({ data, countdown }) {
         </div>
       </div>
 
-      {/* Schedule snippet */}
       <div style={{ marginBottom: 40 }}>
         <h2 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 14, fontSize: 20 }}>📅 Trip at a Glance</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
@@ -394,7 +366,6 @@ function HomePage({ data, countdown }) {
         </div>
       </div>
 
-      {/* Latest article */}
       {latestArticle && (
         <div style={{ marginBottom: 40 }}>
           <h2 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 14, fontSize: 20 }}>📰 Commissioner's Corner</h2>
@@ -412,9 +383,7 @@ function HomePage({ data, countdown }) {
 }
 
 function DraftBoardPage({ players }) {
-  // Only show 2026 attending players on the draft board
   const attendingPlayers = players.filter((p) => p.attending2026);
-
   const sorted = [...attendingPlayers]
     .map((p) => ({ ...p, avg: getAvgDiff(p) }))
     .sort((a, b) => {
@@ -464,12 +433,9 @@ function DraftBoardPage({ players }) {
 
 function PlayersPage({ players }) {
   const [selected, setSelected] = useState(null);
-
   if (selected) {
     return <PlayerProfile player={selected} onBack={() => setSelected(null)} />;
   }
-
-  // Split into attending and alumni
   const attending = players.filter((p) => p.attending2026);
   const alumni = players.filter((p) => !p.attending2026);
 
@@ -477,15 +443,11 @@ function PlayersPage({ players }) {
     <div style={{ color: COLORS.cream }}>
       <h1 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 6 }}>👤 Players</h1>
       <p style={{ color: COLORS.creamDim, marginBottom: 24, fontSize: 14 }}>Click a player card for full profile and round history.</p>
-
-      {/* 2026 Attending */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 16 }}>
         {attending.map((p) => (
           <PlayerCard key={p.name} player={p} onClick={() => setSelected(p)} />
         ))}
       </div>
-
-      {/* Alumni divider */}
       {alumni.length > 0 && (
         <>
           <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "36px 0 20px" }}>
@@ -509,8 +471,6 @@ function ItineraryPage() {
     <div style={{ color: COLORS.cream }}>
       <h1 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 6 }}>📅 Itinerary</h1>
       <p style={{ color: COLORS.creamDim, marginBottom: 24, fontSize: 14 }}>St. George, Utah — September 3–7, 2026</p>
-
-      {/* Schedule */}
       <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 40 }}>
         {SCHEDULE.map((day) => (
           <div key={day.day} style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 20 }}>
@@ -526,27 +486,18 @@ function ItineraryPage() {
           </div>
         ))}
       </div>
-
-      {/* Course info */}
       <h2 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 14 }}>⛳ Courses</h2>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16, marginBottom: 40 }}>
         {COURSES.map((c) => (
           <div key={c.name} style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 18 }}>
             <div style={{ fontFamily: "Playfair Display, serif", color: COLORS.cream, fontSize: 17, fontWeight: 700, marginBottom: 4 }}>{c.name}</div>
             <div style={{ color: COLORS.tan, fontSize: 14, marginBottom: 4 }}>{c.day}</div>
-            <a
-              href={`https://www.google.com/maps/place/?q=place_id:${c.placeId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ color: COLORS.orangeLight, fontSize: 13, textDecoration: "none" }}
-            >
+            <a href={`https://www.google.com/maps/place/?q=place_id:${c.placeId}`} target="_blank" rel="noopener noreferrer" style={{ color: COLORS.orangeLight, fontSize: 13, textDecoration: "none" }}>
               View on Google Maps →
             </a>
           </div>
         ))}
       </div>
-
-      {/* Interactive Map */}
       <h2 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 14 }}>🗺️ Course Map</h2>
       <div style={{ borderRadius: 14, overflow: "hidden", border: `1px solid ${COLORS.border}`, marginBottom: 16 }}>
         <iframe
@@ -566,17 +517,11 @@ function ItineraryPage() {
           </div>
         ))}
       </div>
-
       <div style={{ marginTop: 20, background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 16 }}>
         <div style={{ color: COLORS.tan, fontWeight: 700, marginBottom: 10 }}>📍 Quick Links</div>
         {COURSES.map((c) => (
           <div key={c.name} style={{ marginBottom: 8 }}>
-            <a
-              href={`https://www.google.com/maps/place/?q=place_id:${c.placeId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ color: COLORS.orangeLight, fontSize: 14, textDecoration: "none" }}
-            >
+            <a href={`https://www.google.com/maps/place/?q=place_id:${c.placeId}`} target="_blank" rel="noopener noreferrer" style={{ color: COLORS.orangeLight, fontSize: 14, textDecoration: "none" }}>
               📍 {c.name} ({c.day}) →
             </a>
           </div>
@@ -595,7 +540,6 @@ function PointsPage() {
     { name: "Sand Hollow — 2v2 Scramble/Alt Shot", format: "1pt per match", pts: 4, teamJohn: null, teamBrian: null },
     { name: "Copper Rock — 1v1 Singles", format: "1pt per match", pts: 8, teamJohn: null, teamBrian: null },
   ];
-
   const totalJohn = events.reduce((s, e) => s + (e.teamJohn || 0), 0);
   const totalBrian = events.reduce((s, e) => s + (e.teamBrian || 0), 0);
 
@@ -603,7 +547,6 @@ function PointsPage() {
     <div style={{ color: COLORS.cream }}>
       <h1 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 6 }}>🏅 Points Tracker</h1>
       <p style={{ color: COLORS.creamDim, marginBottom: 24, fontSize: 14 }}>25 total points up for grabs. First team to 13 wins.</p>
-
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 32 }}>
         {[{ name: "Team John", score: totalJohn }, { name: "Team Brian", score: totalBrian }].map((team) => (
           <div key={team.name} style={{ background: COLORS.bgCard, border: `2px solid ${COLORS.border}`, borderRadius: 14, padding: 24, textAlign: "center" }}>
@@ -613,7 +556,6 @@ function PointsPage() {
           </div>
         ))}
       </div>
-
       <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 14, overflow: "hidden" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto auto", padding: "10px 16px", borderBottom: `1px solid ${COLORS.border}`, background: COLORS.bgCardLight, gap: 8 }}>
           <div style={{ color: COLORS.creamDim, fontSize: 11, textTransform: "uppercase" }}>Event</div>
@@ -642,7 +584,6 @@ function TripDetailsPage() {
     <div style={{ color: COLORS.cream }}>
       <h1 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 6 }}>🗺️ Trip Details</h1>
       <p style={{ color: COLORS.creamDim, marginBottom: 24, fontSize: 14 }}>Everything you need to know before you go.</p>
-
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 24 }}>
         <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 20 }}>
           <h2 style={{ fontFamily: "Playfair Display, serif", color: COLORS.orangeLight, marginBottom: 14, fontSize: 18 }}>✈️ Travel</h2>
@@ -654,7 +595,6 @@ function TripDetailsPage() {
             <div><strong style={{ color: COLORS.cream }}>Checkout:</strong> 10:00 AM, Mon Sep 7</div>
           </div>
         </div>
-
         <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 20 }}>
           <h2 style={{ fontFamily: "Playfair Display, serif", color: COLORS.orangeLight, marginBottom: 14, fontSize: 18 }}>👥 Teams</h2>
           <div style={{ color: COLORS.creamDim, fontSize: 14, lineHeight: 1.8 }}>
@@ -665,7 +605,6 @@ function TripDetailsPage() {
             <div><strong style={{ color: COLORS.cream }}>Team Item:</strong> Custom Hats</div>
           </div>
         </div>
-
         <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 20 }}>
           <h2 style={{ fontFamily: "Playfair Display, serif", color: COLORS.orangeLight, marginBottom: 14, fontSize: 18 }}>🧳 Packing List</h2>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 12px" }}>
@@ -684,7 +623,6 @@ function TripDetailsPage() {
 
 function NewsPage({ articles }) {
   const [expanded, setExpanded] = useState(null);
-
   return (
     <div style={{ color: COLORS.cream }}>
       <h1 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 6 }}>📰 Commissioner's News</h1>
@@ -700,10 +638,7 @@ function NewsPage({ articles }) {
           <div style={{ color: COLORS.creamDim, fontSize: 14, lineHeight: 1.7, whiteSpace: "pre-wrap", overflow: "hidden", maxHeight: expanded === i ? "none" : 100 }}>
             {a.body}
           </div>
-          <button
-            onClick={() => setExpanded(expanded === i ? null : i)}
-            style={{ background: "none", border: "none", color: COLORS.orangeLight, cursor: "pointer", fontSize: 13, marginTop: 8, padding: 0 }}
-          >
+          <button onClick={() => setExpanded(expanded === i ? null : i)} style={{ background: "none", border: "none", color: COLORS.orangeLight, cursor: "pointer", fontSize: 13, marginTop: 8, padding: 0 }}>
             {expanded === i ? "Show less ↑" : "Read more ↓"}
           </button>
         </div>
@@ -717,24 +652,20 @@ function HistoryPage({ history, historyPhotos }) {
     <div style={{ color: COLORS.cream }}>
       <h1 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 6 }}>🏛️ History</h1>
       <p style={{ color: COLORS.creamDim, marginBottom: 32, fontSize: 14 }}>The Village Classic legacy — every chapter, every champion.</p>
-
       {history.length === 0 && (
         <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 40, textAlign: "center", color: COLORS.creamDim }}>
           History coming soon...
         </div>
       )}
-
       {history.map((entry) => {
         const photos = historyPhotos[entry.year] || [];
         const paragraphs = entry.storyline ? entry.storyline.split("||").map((p) => p.trim()).filter(Boolean) : [];
-
         return (
           <div key={entry.year} style={{ marginBottom: 48 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
               <div style={{ fontFamily: "Playfair Display, serif", fontSize: 36, fontWeight: 700, color: COLORS.orangeLight }}>{entry.year}</div>
               {entry.location && <div style={{ color: COLORS.creamDim, fontSize: 16 }}>📍 {entry.location}</div>}
             </div>
-
             {(entry.individualChampion || entry.teamChampion) && (
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
                 {entry.individualChampion && (
@@ -751,7 +682,6 @@ function HistoryPage({ history, historyPhotos }) {
                 )}
               </div>
             )}
-
             <div style={{ marginBottom: photos.length > 0 ? 20 : 0 }}>
               {paragraphs.length > 0 ? (
                 paragraphs.map((p, i) => (
@@ -761,7 +691,6 @@ function HistoryPage({ history, historyPhotos }) {
                 <p style={{ color: COLORS.creamDim, fontSize: 14, fontStyle: "italic" }}>Details coming soon...</p>
               )}
             </div>
-
             {photos.length > 0 && (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
                 {photos.map((url, i) => (
@@ -771,12 +700,234 @@ function HistoryPage({ history, historyPhotos }) {
                 ))}
               </div>
             )}
-
             <div style={{ borderBottom: `1px solid ${COLORS.border}`, marginTop: 40 }} />
           </div>
         );
       })}
     </div>
+  );
+}
+
+// ─── Bogey Chat ───────────────────────────────────────────────────────────────
+
+function PolarBear({ size = 40 }) {
+  return (
+    <svg viewBox="0 0 60 60" width={size} height={size} xmlns="http://www.w3.org/2000/svg">
+      <circle cx="16" cy="18" r="10" fill="#ddeef5" />
+      <circle cx="44" cy="18" r="10" fill="#ddeef5" />
+      <circle cx="30" cy="34" r="22" fill="#eef6fb" />
+      <circle cx="30" cy="34" r="22" fill="none" stroke="#b8d5e3" strokeWidth="1" />
+      <circle cx="22" cy="30" r="3.2" fill="#1a0e06" />
+      <circle cx="38" cy="30" r="3.2" fill="#1a0e06" />
+      <circle cx="23.2" cy="28.8" r="1.1" fill="white" />
+      <circle cx="39.2" cy="28.8" r="1.1" fill="white" />
+      <ellipse cx="30" cy="36.5" rx="4.5" ry="3.2" fill="#2a1506" />
+      <path d="M 25 41 Q 30 45 35 41" stroke="#2a1506" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+      <circle cx="23" cy="35" r="2" fill="#e8c4c0" opacity="0.5" />
+      <circle cx="37" cy="35" r="2" fill="#e8c4c0" opacity="0.5" />
+    </svg>
+  );
+}
+
+function BogeyChat() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [phase, setPhase] = useState("name");
+  const [userName, setUserName] = useState("");
+  const [nameInput, setNameInput] = useState("");
+  const [messages, setMessages] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const endRef = useRef(null);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
+
+  const submitName = async () => {
+    const name = nameInput.trim();
+    if (!name) return;
+    setUserName(name);
+    setPhase("chat");
+    setLoading(true);
+    const initialHistory = [{ role: "user", content: `Hi, my name is ${name}` }];
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: initialHistory, userName: name }),
+      });
+      const data = await res.json();
+      const greeting = { role: "assistant", content: data.reply || `Good to have you, ${name}. Ask me anything about the 2026 Village Classic.` };
+      setHistory([...initialHistory, greeting]);
+      setMessages([greeting]);
+    } catch {
+      const greeting = { role: "assistant", content: `Good to have you, ${name}. I'm Bogey — your official Village Classic guide. Ask me anything.` };
+      setHistory([...initialHistory, greeting]);
+      setMessages([greeting]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const send = async () => {
+    const content = input.trim();
+    if (!content || loading) return;
+    const userMsg = { role: "user", content };
+    const updatedHistory = [...history, userMsg];
+    setHistory(updatedHistory);
+    setMessages((prev) => [...prev, userMsg]);
+    setInput("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: updatedHistory, userName }),
+      });
+      const data = await res.json();
+      const assistantMsg = { role: "assistant", content: data.reply || "Technical difficulties. Bogey is aware and appropriately outraged." };
+      setHistory((prev) => [...prev, assistantMsg]);
+      setMessages((prev) => [...prev, assistantMsg]);
+    } catch {
+      const errMsg = { role: "assistant", content: "Technical difficulties. Bogey is aware and appropriately outraged." };
+      setHistory((prev) => [...prev, errMsg]);
+      setMessages((prev) => [...prev, errMsg]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <>
+      {!isOpen && (
+        <button
+          onClick={() => setIsOpen(true)}
+          title="Ask Bogey"
+          style={{ position: "fixed", bottom: 24, right: 24, width: 62, height: 62, borderRadius: "50%", backgroundColor: "#c1440e", border: "none", cursor: "pointer", boxShadow: "0 4px 20px rgba(193,68,14,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}
+          onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.08)"}
+          onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
+        >
+          <PolarBear size={40} />
+        </button>
+      )}
+
+      {isOpen && (
+        <div style={{ position: "fixed", bottom: 24, right: 24, width: 360, borderRadius: 16, border: "1px solid rgba(193,68,14,0.4)", boxShadow: "0 8px 40px rgba(0,0,0,0.45)", overflow: "hidden", zIndex: 9999, fontFamily: "'DM Sans', system-ui, sans-serif", display: "flex", flexDirection: "column" }}>
+
+          {/* Header */}
+          <div style={{ backgroundColor: "#c1440e", padding: "13px 16px", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+            <div style={{ width: 40, height: 40, borderRadius: "50%", backgroundColor: "rgba(245,230,208,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <PolarBear size={32} />
+            </div>
+            <div>
+              <div style={{ color: "#f5e6d0", fontWeight: 700, fontSize: 14 }}>Bogey</div>
+              <div style={{ color: "rgba(245,230,208,0.65)", fontSize: 11 }}>Village Classic AI</div>
+            </div>
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: "#4ade80" }} />
+              <button onClick={() => setIsOpen(false)} style={{ background: "none", border: "none", color: "rgba(245,230,208,0.7)", fontSize: 22, cursor: "pointer", lineHeight: 1, padding: "0 0 0 8px" }}>×</button>
+            </div>
+          </div>
+
+          {/* Name Screen */}
+          {phase === "name" && (
+            <div style={{ backgroundColor: "#1a0e06", padding: "30px 22px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+              <PolarBear size={68} />
+              <div style={{ textAlign: "center" }}>
+                <div style={{ color: "#f5e6d0", fontSize: 17, fontWeight: 700, marginBottom: 6 }}>Hey, I'm Bogey</div>
+                <div style={{ color: "rgba(245,230,208,0.6)", fontSize: 13, lineHeight: 1.5 }}>Your official Village Classic guide.<br />Who am I talking to?</div>
+              </div>
+              <input
+                type="text"
+                placeholder="Enter your name..."
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && submitName()}
+                autoFocus
+                style={{ width: "100%", padding: "11px 15px", borderRadius: 22, border: "0.5px solid rgba(232,106,47,0.45)", backgroundColor: "#2a1506", color: "#f5e6d0", fontSize: 14, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
+              />
+              <button
+                onClick={submitName}
+                disabled={!nameInput.trim()}
+                style={{ width: "100%", padding: 11, borderRadius: 22, border: "none", backgroundColor: nameInput.trim() ? "#e86a2f" : "rgba(232,106,47,0.2)", color: nameInput.trim() ? "#f5e6d0" : "rgba(245,230,208,0.3)", fontSize: 14, fontWeight: 700, cursor: nameInput.trim() ? "pointer" : "not-allowed", fontFamily: "inherit" }}
+              >
+                Let's Go →
+              </button>
+            </div>
+          )}
+
+          {/* Chat Screen */}
+          {phase === "chat" && (
+            <>
+              <div style={{ backgroundColor: "#1a0e06", padding: "14px 12px", height: 320, overflowY: "auto", display: "flex", flexDirection: "column", gap: 11 }}>
+                {loading && messages.length === 0 && (
+                  <div style={{ display: "flex", alignItems: "flex-end", gap: 7 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: "50%", backgroundColor: "#c1440e", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <PolarBear size={22} />
+                    </div>
+                    <div style={{ padding: "10px 14px", borderRadius: "4px 14px 14px 14px", backgroundColor: "#2a1506", border: "0.5px solid rgba(232,106,47,0.2)", display: "flex", gap: 5, alignItems: "center" }}>
+                      {[0, 1, 2].map((i) => (
+                        <div key={i} style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: "#e86a2f", animation: `bogey-bounce 1.3s ease-in-out ${i * 0.22}s infinite` }} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {messages.map((msg, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start", alignItems: "flex-end", gap: 7 }}>
+                    {msg.role === "assistant" && (
+                      <div style={{ width: 28, height: 28, borderRadius: "50%", backgroundColor: "#c1440e", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <PolarBear size={22} />
+                      </div>
+                    )}
+                    <div style={{ maxWidth: "78%", padding: "9px 13px", borderRadius: msg.role === "user" ? "14px 14px 4px 14px" : "4px 14px 14px 14px", backgroundColor: msg.role === "user" ? "#c1440e" : "#2a1506", color: "#f5e6d0", fontSize: 13, lineHeight: 1.6, border: msg.role === "assistant" ? "0.5px solid rgba(232,106,47,0.2)" : "none" }}>
+                      {msg.content}
+                    </div>
+                  </div>
+                ))}
+                {loading && messages.length > 0 && (
+                  <div style={{ display: "flex", alignItems: "flex-end", gap: 7 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: "50%", backgroundColor: "#c1440e", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <PolarBear size={22} />
+                    </div>
+                    <div style={{ padding: "10px 14px", borderRadius: "4px 14px 14px 14px", backgroundColor: "#2a1506", border: "0.5px solid rgba(232,106,47,0.2)", display: "flex", gap: 5, alignItems: "center" }}>
+                      {[0, 1, 2].map((i) => (
+                        <div key={i} style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: "#e86a2f", animation: `bogey-bounce 1.3s ease-in-out ${i * 0.22}s infinite` }} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div ref={endRef} />
+              </div>
+              <div style={{ backgroundColor: "#2a1506", padding: "11px 12px", borderTop: "0.5px solid rgba(232,106,47,0.2)", display: "flex", gap: 8, flexShrink: 0 }}>
+                <input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), send())}
+                  placeholder="Ask Bogey anything..."
+                  disabled={loading}
+                  style={{ flex: 1, padding: "9px 13px", borderRadius: 20, border: "0.5px solid rgba(232,106,47,0.35)", backgroundColor: "#1a0e06", color: "#f5e6d0", fontSize: 13, outline: "none", fontFamily: "inherit" }}
+                />
+                <button
+                  onClick={send}
+                  disabled={loading || !input.trim()}
+                  style={{ padding: "9px 16px", borderRadius: 20, border: "none", backgroundColor: loading || !input.trim() ? "rgba(232,106,47,0.2)" : "#e86a2f", color: loading || !input.trim() ? "rgba(245,230,208,0.35)" : "#f5e6d0", fontSize: 13, fontWeight: 600, cursor: loading || !input.trim() ? "not-allowed" : "pointer", fontFamily: "inherit", flexShrink: 0 }}
+                >
+                  Send
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      <style>{`
+        @keyframes bogey-bounce {
+          0%, 80%, 100% { opacity: 0.25; transform: scale(0.75); }
+          40% { opacity: 1; transform: scale(1); }
+        }
+      `}</style>
+    </>
   );
 }
 
@@ -836,36 +987,21 @@ export default function App() {
           <div style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={() => { setActiveTab("home"); setMenuOpen(false); }}>
             <span style={{ fontFamily: "Playfair Display, serif", color: COLORS.cream, fontSize: 18, fontWeight: 700 }}>The Village Classic</span>
           </div>
-
           <nav style={{ display: "flex", gap: 4, flexWrap: "wrap" }} className="desktop-nav">
             {tabs.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setActiveTab(t.id)}
-                style={{ background: activeTab === t.id ? COLORS.orange : "none", border: "none", color: activeTab === t.id ? "#fff" : COLORS.creamDim, cursor: "pointer", padding: "6px 10px", borderRadius: 6, fontSize: 13, fontFamily: "DM Sans, sans-serif", transition: "all 0.15s" }}
-              >
+              <button key={t.id} onClick={() => setActiveTab(t.id)} style={{ background: activeTab === t.id ? COLORS.orange : "none", border: "none", color: activeTab === t.id ? "#fff" : COLORS.creamDim, cursor: "pointer", padding: "6px 10px", borderRadius: 6, fontSize: 13, fontFamily: "DM Sans, sans-serif", transition: "all 0.15s" }}>
                 {t.label}
               </button>
             ))}
           </nav>
-
-          <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            style={{ background: "none", border: `1px solid ${COLORS.border}`, color: COLORS.cream, cursor: "pointer", padding: "6px 10px", borderRadius: 6, fontSize: 20 }}
-            className="hamburger"
-          >
+          <button onClick={() => setMenuOpen(!menuOpen)} style={{ background: "none", border: `1px solid ${COLORS.border}`, color: COLORS.cream, cursor: "pointer", padding: "6px 10px", borderRadius: 6, fontSize: 20 }} className="hamburger">
             {menuOpen ? "✕" : "☰"}
           </button>
         </div>
-
         {menuOpen && (
           <div style={{ background: COLORS.bgCard, borderTop: `1px solid ${COLORS.border}`, padding: "8px 0" }}>
             {tabs.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => { setActiveTab(t.id); setMenuOpen(false); }}
-                style={{ display: "block", width: "100%", textAlign: "left", background: activeTab === t.id ? COLORS.orange : "none", border: "none", color: activeTab === t.id ? "#fff" : COLORS.cream, cursor: "pointer", padding: "12px 24px", fontSize: 15, fontFamily: "DM Sans, sans-serif" }}
-              >
+              <button key={t.id} onClick={() => { setActiveTab(t.id); setMenuOpen(false); }} style={{ display: "block", width: "100%", textAlign: "left", background: activeTab === t.id ? COLORS.orange : "none", border: "none", color: activeTab === t.id ? "#fff" : COLORS.cream, cursor: "pointer", padding: "12px 24px", fontSize: 15, fontFamily: "DM Sans, sans-serif" }}>
                 {t.label}
               </button>
             ))}
@@ -898,6 +1034,8 @@ export default function App() {
           </>
         )}
       </main>
+
+      <BogeyChat />
     </div>
   );
 }
