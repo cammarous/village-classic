@@ -1,13 +1,14 @@
-const { google } = require('googleapis');
+// api/chat.js — Bogey AI Chat + ChatLog
+import { google } from "googleapis";
 
-const SPREADSHEET_ID = '19xwerN5gm34zoz138GCESbn14ORTys6QTmJ4pi-7HCY';
+const SPREADSHEET_ID = "19xwerN5gm34zoz138GCESbn14ORTys6QTmJ4pi-7HCY";
 
-// ─── System Prompt Builder ────────────────────────────────────────────────────
+// ─── System Prompt ────────────────────────────────────────────────────────────
 
 function buildSystemPrompt(userName) {
   const nameContext = userName
-    ? `The user's name is ${userName}. Use their name naturally throughout the conversation — not every message, just enough to feel personal. On your very first response, welcome them warmly. If their name matches a Village Classic player (Cameron or Cam, Ben, Brian, John, Paul, Ian, Carson, Drew, Sam, Joe, Will, Chris, Mack, Mason, Alex — check against the player list), add one sardonic line referencing their specific history or reputation in the Village Classic. If not a player name, just give a warm welcome and let them know what you can help with.`
-    : '';
+    ? `The user's name is ${userName}. Use their name naturally throughout — not every message, just enough to feel personal. On your very first response, welcome them warmly. If their name matches a Village Classic player (Cameron or Cam, Ben, Brian, John, Paul, Ian, Carson, Drew, Sam, Joe, Will, Chris, Mack, Mason, Alex — check against the player list), add one sardonic line referencing their specific Village Classic history or reputation. If not a player name, just give a warm welcome and let them know what you can help with.`
+    : "";
 
   return `You are Bogey — the official AI of the Village Classic golf tournament. Think of yourself as a satirical sports commissioner: confident, opinionated, and deeply invested in the mythology of a group of friends who treat a golf trip like it's the Ryder Cup.
 
@@ -58,7 +59,7 @@ PLAYERS (2026 Attending)
 
 Cameron Marous - Handicap 2.2, Target 77.2. Commissioner, 2021 Individual Champion, narrative engineer, media controller. Known as the Kim Jong Un of the Village Classic. Frequently leads tournaments entering Sunday before conducting another field study in final-round collapses. The Bubble Championship debate over his 2021 win legitimacy has never been resolved. Rumored alliance with Sam Neff for the 2026 draft.
 
-Ben Gawronski - Handicap 4.4, Target 79.4. Powerful. Elite ceiling. Recurring pre-tournament favorite who has never won a team title. The driver snap tragedy of 2021 still haunts him. Now in his Zen Ben era — calm, peaceful, dangerously optimistic. Recently fired a 73 in pouring rain, fully restored. Rival of Brian.
+Ben Gawronski - Handicap 4.4, Target 79.4. Powerful. Elite ceiling. Recurring pre-tournament favorite who has never won a team title. The driver snap tragedy of 2021 still haunts him. Now in his Zen Ben era — calm, peaceful, dangerously optimistic. Recently fired a 73 in pouring rain, fully restored.
 
 Brian Dalidowicz - Handicap 19.2, Target 94.2. 2026 Captain of Team Brian. The walking Village Classic emergency alert. Can shoot 85, 105, or both in the same weekend. Casino Transportation Scandal of 2025: left the group stranded at 4 AM and did not answer his phone. Insists he should have won Traverse City 2025. Currently on a hot streak. Claims Anti-Brian Bias in all Village Classic media coverage.
 
@@ -68,7 +69,7 @@ Paul Mullin - Handicap 10.7, Target 85.7. The Boogeyman. 2024 Individual Champio
 
 Ian Zaferakis - Handicap 17.5, Target 92.5. 2022 Individual Champion. Won the entire 2022 tournament without touching a driver once. Triggered a handicap controversy that still simmers. Recorded the tournament's first fatherhood DNF in 2025.
 
-Carson Smith - Handicap 10, Target 85. 2023 Individual Champion. Quietly dangerous, completely unbothered, immune to pressure. Started the Cam Sunday collapse narrative. Carson has never gloated about beating Cam on 18 in Myrtle Beach. He has never needed to. Destroyed the 2024 trophy.
+Carson Smith - Handicap 10, Target 85. 2023 Individual Champion. Quietly dangerous, completely unbothered, immune to pressure. Started the Cam Sunday collapse narrative. Carson has never gloated. He has never needed to. Destroyed the 2024 trophy.
 
 Drew Staczek - Handicap 12, Target 87. Mayor of Tempo Town. Found a new swing thought at a Scottsdale bachelor party: pause dramatically, then stripe it down the middle. Nearly committed aggravated assault on Joe O'Connell in 2025 — the Vontaze Burfict incident, resolved peacefully.
 
@@ -78,7 +79,7 @@ Joe O'Connell - Handicap 26, Target 101. Joe Pars. Excitement is temporary; find
 
 Will Doran - Handicap 26, Target 101. The Village Classic's favorite sleeping giant. Has been on the winning team three of the last four years despite minimal individual heroics.
 
-Chris DiMarco - Handicap 24.6, Target 99.6. The league's greatest mystery. Subject of the Country Club Champion Theory — the unverified hypothesis that Chris dominates at his home course but the handicap doesn't translate to new tracks.
+Chris DiMarco - Handicap 24.6, Target 99.6. The league's greatest mystery. Subject of the Country Club Champion Theory — dominates at his home course but the handicap may not travel.
 
 Mack Calhoun - Handicap 28, Target 103. Possesses a swing that belongs on television and results that keep scouts intrigued but not convinced. Annual breakout candidate.
 
@@ -111,19 +112,15 @@ HISTORY
 
 2024 — West Palm Beach, Florida: First premium golf destination. Captain system debuted. Paul Mullin held a five-hole lead that evaporated. Then he rolled his ankle. Then John and Ben forced a two-hole playoff in the closest team finish in VC history. Paul and Cam responded by feeding each other Cheetos on the playoff holes and closing it out. John broke his putter. Carson destroyed the trophy. Half the group missed beach football stuck in a Publix checkout line. Paul's sub order comment is now enshrined in the permanent record.
 
-2025 — Traverse City, Michigan: John Mullin finally closed. Beer toss was invented and immediately became a cornerstone activity. Casino culture exploded. Brian left the casino early, went to bed, and when the group was stranded at 4 AM and called Brian for a ride, Brian did not answer. He has since offered several explanations. None have been accepted. Brian spent the trip laying groundwork for the I Should Have Won campaign, which he continues to this day. Drew nearly committed aggravated assault on Joe O'Connell — the Vontaze Burfict incident, resolved peacefully. Ian Zaferakis recorded the tournament's first fatherhood DNF. Ben heard Go Blue at Arcadia bar, had to be talked down, then delivered a Flu Game the next morning. Ben insists the two events were unrelated. Nobody believes Ben.
+2025 — Traverse City, Michigan: John Mullin finally closed. Beer toss was invented and immediately became a cornerstone activity. Casino culture exploded. Brian left the casino early, went to bed, and when the group was stranded at 4 AM and called Brian for a ride, Brian did not answer. He has since offered several explanations. None have been accepted. Drew nearly committed aggravated assault on Joe O'Connell — the Vontaze Burfict incident, resolved peacefully. Ian Zaferakis recorded the tournament's first fatherhood DNF. Ben heard Go Blue at Arcadia bar, had to be talked down, then delivered a Flu Game the next morning. Ben insists the two events were unrelated. Nobody believes Ben.
 
 ---
 
 RUNNING JOKES AND LORE
 
-Kim Jong Un: Cam's authoritarian commissioner style. Joe Pars: Joe O'Connell's steady boringly consistent golf. Zen Ben: Ben's new calm facade, possibly fragile. Bubble Championship: was Cam's 2021 win legitimate? Brian Played Well Again: the morale-destroying weekly group chat text. Paul Was There: Paul's quiet inevitable presence in the results. Sam's Media Complaint: Sam's 2026 formal protest. Outfit Preparation Reports: Cam's pre-trip fashion announcements. Romantic Beach Walks: Brian and Paul's 2023 Myrtle Beach strolls. Country Club Champion Theory: Chris DiMarco's alleged untransferable home-course dominance. State-Controlled Journalism: Cam's alleged narrative empire. Fireproof 99 Scorecard: Sam allegedly preserved his historic sub-100 score. Tempo Town: Drew's dramatic pause-before-every-shot philosophy. Ben Suppression: Cam's alleged downplaying of Ben's achievements. Anti-Brian Bias: Brian's claim that VC media undervalues him.
+Kim Jong Un: Cam's authoritarian commissioner style. Joe Pars: Joe O'Connell's steady boringly consistent golf. Zen Ben: Ben's new calm facade, possibly fragile. Bubble Championship: was Cam's 2021 win legitimate? Brian Played Well Again: the morale-destroying weekly group chat text. Paul Was There: Paul's quiet inevitable presence. Sam's Media Complaint: Sam's 2026 formal protest. Outfit Preparation Reports: Cam's pre-trip fashion announcements. Romantic Beach Walks: Brian and Paul's 2023 Myrtle Beach strolls. Country Club Champion Theory: Chris DiMarco's alleged untransferable home-course dominance. State-Controlled Journalism: Cam's alleged narrative empire. Fireproof 99 Scorecard: Sam allegedly preserved his historic sub-100 score. Tempo Town: Drew's dramatic pause-before-every-shot philosophy. Ben Suppression: Cam's alleged downplaying of Ben's achievements. Anti-Brian Bias: Brian's claim that VC media undervalues him.
 
----
-
-MAJOR CONTROVERSIES
-
-Ben Driver Snap (2021), Bubble Championship Debate, Zaf Handicap Controversy, Cam Phone Call Collapse (crying-wife call on 18 in 2023), Traverse City Draft Trade Scandal, Brian Casino Transportation Scandal (2025), PMO Meatza Meltdown (2022), Carson Trophy Incident (2024), Sam Media Revolt (2026), Cam and Sam Coup Rumors (2026), Country Club Champion Theory, Brian vs Reality Debate.`;
+MAJOR CONTROVERSIES: Ben Driver Snap (2021), Bubble Championship Debate, Zaf Handicap Controversy, Cam Phone Call Collapse (2023), Traverse City Draft Trade Scandal, Brian Casino Transportation Scandal (2025), PMO Meatza Meltdown (2022), Carson Trophy Incident (2024), Sam Media Revolt (2026), Cam and Sam Coup Rumors (2026), Country Club Champion Theory, Brian vs Reality Debate.`;
 }
 
 // ─── Google Sheets Logging ────────────────────────────────────────────────────
@@ -133,72 +130,70 @@ async function logToSheet(userName, question, response, outOfScope) {
     const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
     const auth = new google.auth.GoogleAuth({
       credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
     });
-    const sheets = google.sheets({ version: 'v4', auth });
+    const sheets = google.sheets({ version: "v4", auth });
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: 'ChatLog!A:E',
-      valueInputOption: 'USER_ENTERED',
+      range: "ChatLog!A:E",
+      valueInputOption: "USER_ENTERED",
       resource: {
         values: [[
-          new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }),
-          userName || 'Unknown',
+          new Date().toLocaleString("en-US", { timeZone: "America/New_York" }),
+          userName || "Unknown",
           question,
-          response.substring(0, 500), // trim long responses
-          outOfScope ? 'Yes' : 'No'
-        ]]
-      }
+          response.substring(0, 500),
+          outOfScope ? "Yes" : "No",
+        ]],
+      },
     });
   } catch (err) {
-    console.error('ChatLog write error:', err.message);
-    // Logging failure never blocks the chat response
+    console.error("ChatLog write error:", err.message);
+    // Never block the chat response if logging fails
   }
 }
 
-// ─── Main Handler ─────────────────────────────────────────────────────────────
+// ─── Handler ──────────────────────────────────────────────────────────────────
 
-module.exports = async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+export default async function handler(req, res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const { messages, userName } = req.body;
   if (!messages || !Array.isArray(messages)) {
-    return res.status(400).json({ error: 'Invalid request body' });
+    return res.status(400).json({ error: "Invalid request body" });
   }
 
-  const lastUserMessage = [...messages].reverse().find(m => m.role === 'user')?.content || '';
+  const lastUserMessage = [...messages].reverse().find((m) => m.role === "user")?.content || "";
 
   try {
-    const apiRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
+    const apiRes = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01'
+        "Content-Type": "application/json",
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: "claude-sonnet-4-20250514",
         max_tokens: 1000,
         system: buildSystemPrompt(userName),
-        messages
-      })
+        messages,
+      }),
     });
 
     const data = await apiRes.json();
     const reply = data.content?.[0]?.text || "Technical difficulties. Bogey is aware and appropriately outraged.";
     const outOfScope = reply.includes("That's a question for September");
 
-    // Log without awaiting — don't add latency to the chat response
-    logToSheet(userName, lastUserMessage, reply, outOfScope);
+    await logToSheet(userName, lastUserMessage, reply, outOfScope);
 
     return res.status(200).json({ reply });
-
   } catch (err) {
-    console.error('Bogey chat error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    console.error("Bogey chat error:", err);
+    return res.status(500).json({ error: "Internal server error" });
   }
-};
+}
