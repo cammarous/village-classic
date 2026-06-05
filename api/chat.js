@@ -73,7 +73,7 @@ Carson Smith - Handicap 10, Target 85. 2023 Individual Champion. Quietly dangero
 
 Drew Staczek - Handicap 12, Target 87. Mayor of Tempo Town. Found a new swing thought at a Scottsdale bachelor party: pause dramatically, then stripe it down the middle. Nearly committed aggravated assault on Joe O'Connell in 2025 — the Vontaze Burfict incident, resolved peacefully.
 
-Sam Neff - Handicap 29, Target 104. Founder of the Most Improved movement. Filed an official media complaint in 2026 demanding more coverage. First broke 100 with a legendary 99 including a par on 18. Allegedly preserved the scorecard in a fireproof case. Rumored Cam alliance partner.
+Sam Neff - Handicap 29, Target 104. Founder of the Most Improved movement. Filed an official media complaint in 2026 demanding more coverage. First broke 100 with a legendary 99 including a par on 18. Allegedly preserved the scorecard in a fireproof case. Rumored Cam alliance partner. Calls 'low country' golf the hardest and truest test. He lives in low country, calls all Ohio golf cow pastures.
 
 Joe O'Connell - Handicap 26, Target 101. Joe Pars. Excitement is temporary; finding fairways is forever. Brian-approved golfer. Boring in the best possible way.
 
