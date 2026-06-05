@@ -186,6 +186,12 @@ export default async function handler(req, res) {
     });
 
     const data = await apiRes.json();
+
+    // Log the full response if something looks wrong
+    if (!data.content?.[0]?.text) {
+      console.error("Anthropic API unexpected response:", JSON.stringify(data));
+    }
+
     const reply = data.content?.[0]?.text || "Technical difficulties. Bogey is aware and appropriately outraged.";
     const outOfScope = reply.includes("That's a question for September");
 
