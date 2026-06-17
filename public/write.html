@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Village Classic — Commissioner's Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet" />
+<style>
+  :root { --canyon:#c1440e; --canyon-light:#e86a2f; --tan:#d4956a; --bg:#1a0e06; --bg2:#2a1506; --cream:#f5e6d0; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--cream); font-family:'DM Sans',sans-serif; line-height:1.5; min-height:100vh; padding:24px 16px; }
+  .wrap { max-width:760px; margin:0 auto; }
+  h1 { font-family:'Playfair Display',serif; font-weight:900; color:var(--canyon-light); font-size:2rem; margin:0 0 4px; }
+  .sub { color:var(--tan); font-size:0.95rem; margin:0 0 24px; }
+  .card { background:var(--bg2); border:1px solid #4a2a14; border-radius:14px; padding:20px; margin-bottom:18px; }
+  label { display:block; font-weight:700; margin:0 0 6px; color:var(--cream); font-size:0.9rem; }
+  input[type=text], input[type=password], textarea, select { width:100%; background:#160a04; border:1px solid #5a3318; color:var(--cream); border-radius:8px; padding:10px 12px; font-family:inherit; font-size:0.95rem; margin-bottom:14px; }
+  textarea { resize:vertical; min-height:90px; }
+  .row { display:flex; gap:12px; flex-wrap:wrap; }
+  .row > div { flex:1; min-width:140px; }
+  button { background:var(--canyon); color:#fff; border:none; border-radius:8px; padding:11px 18px; font-family:inherit; font-weight:700; font-size:0.95rem; cursor:pointer; transition:background .15s; }
+  button:hover { background:var(--canyon-light); }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  button.ghost { background:transparent; border:1px solid var(--tan); color:var(--tan); margin-left:8px; }
+  .tabs { display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap; }
+  .tab { background:var(--bg2); border:1px solid #4a2a14; color:var(--tan); padding:9px 16px; border-radius:20px; cursor:pointer; font-weight:700; font-size:0.85rem; }
+  .tab.active { background:var(--canyon); color:#fff; border-color:var(--canyon); }
+  .hidden { display:none; }
+  .status { margin-top:12px; padding:11px 14px; border-radius:8px; font-size:0.9rem; }
+  .status.ok { background:#1d3a1d; border:1px solid #3a6a3a; color:#b8f0b8; }
+  .status.err { background:#3a1d1d; border:1px solid #6a3a3a; color:#f0b8b8; }
+  .status.info { background:#2a2310; border:1px solid #6a5a2a; color:#f0e0a8; }
+  .preview { background:#160a04; border:1px solid #5a3318; border-radius:8px; padding:16px; margin-bottom:14px; }
+  .muted { color:var(--tan); font-size:0.8rem; margin-top:-8px; margin-bottom:14px; }
+  .spinner { display:inline-block; width:14px; height:14px; border:2px solid #fff; border-top-color:transparent; border-radius:50%; animation:spin .7s linear infinite; vertical-align:middle; margin-right:6px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🐻 Commissioner's Desk</h1>
+  <p class="sub">Draft, edit, and publish straight to the Village Classic site.</p>
+
+  <div class="card">
+    <label for="secret">Commissioner key</label>
+    <input type="password" id="secret" placeholder="Publish secret" autocomplete="off" />
+    <label style="font-weight:400;font-size:0.85rem;color:var(--tan)">
+      <input type="checkbox" id="remember" style="width:auto;margin:0 6px 0 0" /> Remember on this device
+    </label>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-mode="article">📰 Article</div>
+    <div class="tab" data-mode="history">🏛️ History entry</div>
+    <div class="tab" data-mode="note">🐻 Bogey note</div>
+  </div>
+
+  <div class="card mode" id="mode-article">
+    <label for="a-desc">What happened?</label>
+    <textarea id="a-desc" placeholder="e.g. Brian shot 88 and declared it the best round of the trip. Paul shot 79 and said nothing. Cam announced his Sunday outfit two days early."></textarea>
+    <label for="a-instr">Any direction for Bogey? (optional)</label>
+    <input type="text" id="a-instr" placeholder="e.g. keep it short, lead with Paul, go heavy on Anti-Brian Bias" />
+    <button id="a-draft">✍️ Draft with Bogey</button>
+    <div id="a-result" class="hidden" style="margin-top:18px">
+      <div class="preview">
+        <label for="a-title">Headline</label>
+        <input type="text" id="a-title" />
+        <label for="a-author">Author</label>
+        <input type="text" id="a-author" value="The Commissioner" />
+        <label for="a-body">Article</label>
+        <textarea id="a-body" style="min-height:240px"></textarea>
+      </div>
+      <button id="a-publish">🚀 Publish to site</button>
+      <button class="ghost" id="a-redraft">↻ Re-draft</button>
+    </div>
+    <div id="a-status"></div>
+  </div>
+
+  <div class="card mode hidden" id="mode-history">
+    <p class="muted">Adds a row to the History tab (shown on the site's History page).</p>
+    <div class="row">
+      <div><label for="h-year">Year</label><input type="text" id="h-year" placeholder="2026" /></div>
+      <div><label for="h-loc">Location</label><input type="text" id="h-loc" placeholder="St. George, UT" /></div>
+    </div>
+    <div class="row">
+      <div><label for="h-ind">Individual Champion</label><input type="text" id="h-ind" /></div>
+      <div><label for="h-team">Team Champion</label><input type="text" id="h-team" /></div>
+    </div>
+    <label for="h-runner">Runner-Up</label>
+    <input type="text" id="h-runner" />
+    <label for="h-story">Storyline</label>
+    <textarea id="h-story" placeholder="Write the storyline. Separate paragraphs with a blank line — they'll be saved with || between them."></textarea>
+    <button id="h-publish">🚀 Publish history entry</button>
+    <div id="h-status"></div>
+  </div>
+
+  <div class="card mode hidden" id="mode-note">
+    <p class="muted">Drops a line into the BogeyContext tab — live knowledge Bogey reads on every chat. Not shown publicly.</p>
+    <label for="n-text">Note for Bogey</label>
+    <textarea id="n-text" placeholder="e.g. Draft results: Team John took Paul first overall. Brian reached for Joe in round 2 and called it a culture pick."></textarea>
+    <button id="n-publish">🚀 Add note</button>
+    <div id="n-status"></div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const secretEl = $("secret"), rememberEl = $("remember");
+try { const saved = localStorage.getItem("vc_secret"); if (saved) { secretEl.value = saved; rememberEl.checked = true; } } catch (e) {}
+function persistSecret() { try { if (rememberEl.checked) localStorage.setItem("vc_secret", secretEl.value); else localStorage.removeItem("vc_secret"); } catch (e) {} }
+secretEl.addEventListener("change", persistSecret);
+rememberEl.addEventListener("change", persistSecret);
+function secret() { return secretEl.value.trim(); }
+function requireSecret(statusEl) { if (!secret()) { setStatus(statusEl, "err", "Enter the Commissioner key first."); return false; } return true; }
+function setStatus(el, kind, msg) { el.className = "status " + kind; el.textContent = msg; }
+function setBusy(btn, busy, label) { btn.disabled = busy; btn.innerHTML = busy ? '<span class="spinner"></span>' + (label || "Working…") : btn.dataset.label; }
+document.querySelectorAll(".tab").forEach(t => { t.addEventListener("click", () => {
+  document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+  t.classList.add("active");
+  document.querySelectorAll(".mode").forEach(m => m.classList.add("hidden"));
+  $("mode-" + t.dataset.mode).classList.remove("hidden");
+}); });
+["a-draft","a-publish","a-redraft","h-publish","n-publish"].forEach(id => { $(id).dataset.label = $(id).innerHTML; });
+async function api(path, payload) {
+  const res = await fetch(path, { method:"POST", headers:{ "Content-Type":"application/json", "x-publish-secret":secret() }, body:JSON.stringify(payload) });
+  let data = {}; try { data = await res.json(); } catch (e) {}
+  if (!res.ok) throw new Error(data.error || ("HTTP " + res.status) + (data.detail ? " — " + data.detail : ""));
+  return data;
+}
+$("a-draft").addEventListener("click", async () => {
+  const st = $("a-status"); if (!requireSecret(st)) return;
+  const desc = $("a-desc").value.trim(); if (!desc) { setStatus(st, "err", "Tell Bogey what happened first."); return; }
+  setBusy($("a-draft"), true, "Bogey is writing…"); setStatus(st, "info", "Bogey is at the typewriter…");
+  try {
+    const d = await api("/api/draft", { description: desc, instructions: $("a-instr").value.trim() });
+    $("a-title").value = d.title; $("a-body").value = d.body;
+    $("a-result").classList.remove("hidden"); setStatus(st, "ok", "Draft ready. Edit anything, then publish.");
+  } catch (e) { setStatus(st, "err", "Draft failed: " + e.message); } finally { setBusy($("a-draft"), false); }
+});
+$("a-redraft").addEventListener("click", () => $("a-draft").click());
+$("a-publish").addEventListener("click", async () => {
+  const st = $("a-status"); if (!requireSecret(st)) return;
+  const title = $("a-title").value.trim(), body = $("a-body").value.trim();
+  if (!title || !body) { setStatus(st, "err", "Headline and article are both required."); return; }
+  setBusy($("a-publish"), true, "Publishing…");
+  try {
+    await api("/api/publish", { type:"article", title, body, author: $("a-author").value.trim() || "The Commissioner" });
+    setStatus(st, "ok", "Published! It's live on the News page (newest = featured on Home).");
+    $("a-desc").value = ""; $("a-instr").value = ""; $("a-result").classList.add("hidden");
+  } catch (e) { setStatus(st, "err", "Publish failed: " + e.message); } finally { setBusy($("a-publish"), false); }
+});
+$("h-publish").addEventListener("click", async () => {
+  const st = $("h-status"); if (!requireSecret(st)) return;
+  const year = $("h-year").value.trim(); if (!year) { setStatus(st, "err", "Year is required."); return; }
+  const storyline = $("h-story").value.trim().split(/\n\s*\n/).map(s => s.trim()).filter(Boolean);
+  setBusy($("h-publish"), true, "Publishing…");
+  try {
+    await api("/api/publish", { type:"history", year, location:$("h-loc").value.trim(), individualChampion:$("h-ind").value.trim(), teamChampion:$("h-team").value.trim(), runnerUp:$("h-runner").value.trim(), storyline });
+    setStatus(st, "ok", "History entry published.");
+  } catch (e) { setStatus(st, "err", "Publish failed: " + e.message); } finally { setBusy($("h-publish"), false); }
+});
+$("n-publish").addEventListener("click", async () => {
+  const st = $("n-status"); if (!requireSecret(st)) return;
+  const text = $("n-text").value.trim(); if (!text) { setStatus(st, "err", "Write a note first."); return; }
+  setBusy($("n-publish"), true, "Adding…");
+  try { await api("/api/publish", { type:"bogeycontext", text }); setStatus(st, "ok", "Added to Bogey's live knowledge."); $("n-text").value = ""; }
+  catch (e) { setStatus(st, "err", "Failed: " + e.message); } finally { setBusy($("n-publish"), false); }
+});
+</script>
+</body>
+</html>
