@@ -1032,6 +1032,23 @@ function BogeyChat() {
 //   ⌫ Undo               → removes the last pick
 //   Picks also POST to /api/draftpicks so the sheet has a permanent record.
 
+const PICK_SECONDS = 120; // 2 minutes on the clock per pick
+
+function formatClock(s) {
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+const clockBtn = {
+  background: "none",
+  border: `1px solid ${COLORS.border}`,
+  color: COLORS.creamDim,
+  borderRadius: 6,
+  padding: "5px 12px",
+  fontSize: 13,
+  cursor: "pointer",
+  fontFamily: "DM Sans, sans-serif",
+};
+
 const CAPTAINS = [
   { key: "john", name: "John Mullin", team: "Team John", color: "#e86a2f" },
   { key: "brian", name: "Brian Dalidowicz", team: "Team Brian", color: "#4a9edd" },
@@ -1067,7 +1084,8 @@ function BigBoard({ players }) {
 
   const ORDER = snakeOrder(pool.length);
   const [picks, setPicks] = useState([]);          // [{ player, teamIdx }]
-  const [clock, setClock] = useState(60);
+  const [clock, setClock] = useState(PICK_SECONDS);
+  const [paused, setPaused] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
   // Load any picks already recorded (survives a refresh mid-draft)
@@ -1091,13 +1109,17 @@ function BigBoard({ players }) {
   const bestAvailable = available[0] || null;
   const done = onClock === null;
 
-  // Pick timer — resets on every pick
+  // Pick timer — auto-resets to a full clock on every pick, and unpauses
   useEffect(() => {
-    setClock(60);
-    if (done) return;
+    setClock(PICK_SECONDS);
+    setPaused(false);
+  }, [picks.length]);
+
+  useEffect(() => {
+    if (done || paused) return;
     const t = setInterval(() => setClock((c) => (c > 0 ? c - 1 : 0)), 1000);
     return () => clearInterval(t);
-  }, [picks.length, done]);
+  }, [done, paused]);
 
   function makePick(playerName) {
     if (done || drafted.has(playerName)) return;
@@ -1147,11 +1169,23 @@ function BigBoard({ players }) {
           </div>
         )}
         {!done && (
-          <div style={{ textAlign: "center", minWidth: 130 }}>
-            <div style={{ color: COLORS.creamDim, fontSize: 12, textTransform: "uppercase", letterSpacing: 2 }}>On the Clock</div>
-            <div style={{ fontSize: 60, fontWeight: 700, lineHeight: 1, fontVariantNumeric: "tabular-nums", color: clock <= 10 ? "#e57373" : COLORS.cream }}>
-              :{String(clock).padStart(2, "0")}
+          <div style={{ textAlign: "center", minWidth: 190 }}>
+            <div style={{ color: COLORS.creamDim, fontSize: 12, textTransform: "uppercase", letterSpacing: 2 }}>
+              {paused ? "Paused" : "On the Clock"}
             </div>
+            <div style={{ fontSize: 60, fontWeight: 700, lineHeight: 1, fontVariantNumeric: "tabular-nums", color: paused ? COLORS.tan : clock <= 15 ? "#e57373" : COLORS.cream }}>
+              {formatClock(clock)}
+            </div>
+            {!clean && (
+              <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 8 }}>
+                <button onClick={() => setPaused((v) => !v)} style={clockBtn}>
+                  {paused ? "▶ Resume" : "⏸ Pause"}
+                </button>
+                <button onClick={() => { setClock(PICK_SECONDS); setPaused(false); }} style={clockBtn}>
+                  ↻ Reset
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
