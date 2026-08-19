@@ -144,8 +144,8 @@ Dates: September 3-7, 2026. Location: St. George, Utah (Airbnb-based trip). Capt
 
 FULL SCHEDULE:
 Thursday Sep 3: 4:00 PM Airbnb Check-in and Arrival, then Live Team Draft, then Baseball competition (1 point), then Dinner, then Captains set Day 1 matchups.
-Friday Sep 4 at Coral Canyon Golf Course (Washington, UT): Breakfast on own, then 8:30 AM Morning Round (2v2 Matchplay), then Lunch at course, then Captains make afternoon matchups, then 2:40 PM Afternoon Round (2v2 Scramble/Alt Shot), then Dinner at home.
-Saturday Sep 5 at Sand Hollow Resort (Hurricane, UT): Breakfast on own, then 7:40-8:13 AM Morning Round (2v2 Matchplay), then Lunch at course, then Captains assign matchups, then 3:00-3:33 PM Afternoon Round (2v2 Scramble/Alt Shot), then Dinner, then Captains make singles pairings.
+Friday Sep 4 at Coral Canyon Golf Course (Washington, UT): Breakfast on own, then 8:30 AM Morning Round (2v2 Matchplay), then Lunch at course, then Captains make afternoon matchups, then 2:40 PM Afternoon Round (full 2v2 Scramble), then Dinner at home.
+Saturday Sep 5 at Sand Hollow Resort (Hurricane, UT): Breakfast on own, then 7:40-8:13 AM Morning Round (2v2 Matchplay), then Lunch at course, then Captains assign matchups, then 3:00-3:33 PM Afternoon Round (full Modified Alternate Shot), then Dinner, then Captains make singles pairings.
 Sunday Sep 6 at Copper Rock Golf Course (Hurricane, UT): 9:36 AM Championship Round (1v1 Singles Matchplay), then Championship Award ceremony, then Group hang at Airbnb.
 Monday Sep 7: 10:00 AM Airbnb Checkout and Depart.
 
@@ -153,7 +153,7 @@ PACKING LIST: Golf Clubs, Golf Shoes, Golf Balls, Golf Gloves, 3 Days of Golf Ou
 
 SCORING SYSTEM: Target score = 72 (par) + handicap + 3 buffer strokes. Draft Board ranks by average score vs personal target — lower is better, negative means beating your target. Format: 18-hole stroke play.
 
-POINTS SYSTEM (25 total): Baseball Thursday 1 point. Coral Canyon 2v2 Matchplay 4 points. Coral Canyon 2v2 Scramble/Alt Shot 4 points. Sand Hollow 2v2 Matchplay 4 points. Sand Hollow 2v2 Scramble/Alt Shot 4 points. Copper Rock 1v1 Singles Matchplay 8 points.
+POINTS SYSTEM (25 total): Baseball Thursday 1 point. Coral Canyon 2v2 Matchplay 4 points. Coral Canyon full 2v2 Scramble 4 points. Sand Hollow 2v2 Matchplay 4 points. Sand Hollow full Modified Alternate Shot 4 points. Copper Rock 1v1 Singles Matchplay 8 points.
 
 ---
 
