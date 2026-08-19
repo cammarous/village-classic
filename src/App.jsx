@@ -140,6 +140,40 @@ function useCountdown() {
   return timeLeft;
 }
 
+// ─── Teams ───────────────────────────────────────────────────────────────────
+// Single source of truth for team identity. The Big Board, badges, Teams page
+// and split Draft Board all read from here.
+const TEAMS = [
+  { name: "Team John", captain: "John Mullin", color: "#e86a2f" },
+  { name: "Team Brian", captain: "Brian Dalidowicz", color: "#4a9edd" },
+];
+
+function teamMeta(teamName) {
+  return TEAMS.find((t) => t.name === teamName) || null;
+}
+
+// Average of every rostered player's avg-vs-target. Lower = stronger team.
+function teamAvg(players) {
+  const vals = players.map((p) => getAvgDiff(p)).filter((v) => v !== null);
+  if (!vals.length) return null;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
+function TeamBadge({ team, small }) {
+  const m = teamMeta(team);
+  if (!m) return null;
+  return (
+    <span style={{
+      display: "inline-block", background: `${m.color}22`, border: `1px solid ${m.color}`,
+      color: m.color, borderRadius: 4, padding: small ? "1px 6px" : "2px 8px",
+      fontSize: small ? 10 : 11, fontWeight: 700, textTransform: "uppercase",
+      letterSpacing: 0.6, whiteSpace: "nowrap",
+    }}>
+      {m.name.replace("Team ", "")}
+    </span>
+  );
+}
+
 // ─── Sub-components ──────────────────────────────────────────────────────────
 function PlayerCard({ player, onClick }) {
   const avg = getAvgDiff(player);
@@ -180,6 +214,11 @@ function PlayerCard({ player, onClick }) {
           color: COLORS.creamDim, textTransform: "uppercase", letterSpacing: 0.8,
         }}>
           Alumni
+        </div>
+      )}
+      {isAttending && player.team && (
+        <div style={{ position: "absolute", top: 10, right: 10 }}>
+          <TeamBadge team={player.team} small />
         </div>
       )}
       <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
@@ -241,7 +280,10 @@ function PlayerProfile({ player, onBack }) {
           <div style={{ width: 120, height: 120, borderRadius: "50%", background: COLORS.bgCardLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 48, border: `3px solid ${COLORS.border}` }}>⛳</div>
         )}
         <div style={{ flex: 1, minWidth: 200 }}>
-          <h2 style={{ fontFamily: "Playfair Display, serif", margin: "0 0 4px", fontSize: 28 }}>{player.name}</h2>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 4 }}>
+            <h2 style={{ fontFamily: "Playfair Display, serif", margin: 0, fontSize: 28 }}>{player.name}</h2>
+            {player.team && <TeamBadge team={player.team} />}
+          </div>
           <div style={{ color: COLORS.creamDim, fontSize: 15, marginBottom: 8 }}>Handicap: {player.handicap} | Target: {target}</div>
           <div style={{ fontSize: 15, marginBottom: 8 }}>
             Rounds: <strong>{player.scores?.length || 0}</strong> &nbsp;|&nbsp;
@@ -435,7 +477,126 @@ function HomePage({ data, countdown }) {
   );
 }
 
-function DraftBoardPage({ players }) {
+// Post-draft view: the same ranking, split by team, with combined team strength.
+function TeamStandings({ players, isMobile, embedded }) {
+  const byTeam = TEAMS.map((t) => ({
+    ...t,
+    roster: players.filter((p) => p.team === t.name),
+  }));
+  const avgs = byTeam.map((t) => teamAvg(t.roster));
+  const best = avgs.filter((a) => a !== null).sort((a, b) => a - b)[0];
+
+  return (
+    <div style={{ color: COLORS.cream }}>
+      {!embedded && (
+        <>
+          <h1 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 6 }}>🏆 Draft Board</h1>
+          <p style={{ color: COLORS.creamDim, marginBottom: 24, fontSize: 14 }}>
+            Rosters are set. Each team ranked by average score vs personal target (72 + handicap + 3). Lower = better.
+          </p>
+        </>
+      )}
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
+        {byTeam.map((t, ti) => {
+          const avg = avgs[ti];
+          const isBest = avg !== null && avg === best;
+          return (
+            <div key={t.name} style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderTop: `5px solid ${t.color}`, borderRadius: 14, overflow: "hidden" }}>
+              <div style={{ padding: "14px 16px", background: COLORS.bgCardLight, borderBottom: `1px solid ${COLORS.border}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                  <div style={{ fontFamily: "Playfair Display, serif", fontSize: 22, color: t.color }}>{t.name}</div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ color: COLORS.creamDim, fontSize: 10, textTransform: "uppercase", letterSpacing: 1 }}>Team Avg</div>
+                    <div style={{ fontWeight: 700, fontSize: 18, color: diffColorFor(avg) }}>{avg === null ? "—" : formatDiff(avg)}</div>
+                  </div>
+                </div>
+                <div style={{ color: COLORS.creamDim, fontSize: 12, marginTop: 2 }}>
+                  Captain: {t.captain} · {t.roster.length} players{isBest ? " · 📈 Stronger on paper" : ""}
+                </div>
+              </div>
+              {t.roster.map((p, i) => (
+                <div key={p.name} style={{ display: "grid", gridTemplateColumns: "26px 1fr auto", gap: 8, padding: "11px 16px", borderBottom: i < t.roster.length - 1 ? `1px solid ${COLORS.border}` : "none", alignItems: "center" }}>
+                  <div style={{ color: COLORS.creamDim, fontWeight: 700, fontSize: 13 }}>{i + 1}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+                    {p.photo ? (
+                      <img src={p.photo} alt={p.name} style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+                    ) : (
+                      <div style={{ width: 32, height: 32, borderRadius: "50%", background: COLORS.bgCardLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>⛳</div>
+                    )}
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {p.name}{p.name === t.captain && <span style={{ color: t.color, fontSize: 10, marginLeft: 6, fontWeight: 700 }}>©</span>}
+                      </div>
+                      <div style={{ color: COLORS.creamDim, fontSize: 11 }}>
+                        HCP {p.handicap} · Tgt {getTarget(p.handicap)}
+                        {p.range && <> · <span style={{ color: diffColorFor(p.range.lowDiff) }}>L {formatRoundDiff(p.range.lowDiff)}</span> · <span style={{ color: diffColorFor(p.range.highDiff) }}>H {formatRoundDiff(p.range.highDiff)}</span></>}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ fontWeight: 700, fontSize: 15, color: diffColorFor(p.avg) }}>{p.avg === null ? "—" : formatDiff(p.avg)}</div>
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function TeamsPage({ players, draft }) {
+  const isMobile = useIsMobile();
+  const roster = players
+    .filter((p) => p.attending2026)
+    .map((p) => ({ ...p, avg: getAvgDiff(p), range: getScoreRange(p) }))
+    .sort((a, b) => {
+      if (a.avg === null) return 1;
+      if (b.avg === null) return -1;
+      return a.avg - b.avg;
+    });
+
+  if (!draft?.complete) {
+    return (
+      <div style={{ color: COLORS.cream }}>
+        <h1 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 6 }}>🤝 Teams</h1>
+        <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 40, textAlign: "center", marginTop: 20 }}>
+          <div style={{ fontSize: 44, marginBottom: 12 }}>🔒</div>
+          <div style={{ fontFamily: "Playfair Display, serif", fontSize: 24, color: COLORS.tan, marginBottom: 8 }}>Rosters drop at the live draft</div>
+          <p style={{ color: COLORS.creamDim, fontSize: 14, maxWidth: 460, margin: "0 auto", lineHeight: 1.6 }}>
+            Thursday, September 3 in St. George. {draft?.picks?.length ? `${draft.picks.length} pick${draft.picks.length === 1 ? "" : "s"} are in the books — this page fills in the moment the board is complete.` : "Nothing has been picked yet."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ color: COLORS.cream }}>
+      <h1 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 6 }}>🤝 Teams</h1>
+      <p style={{ color: COLORS.creamDim, marginBottom: 24, fontSize: 14 }}>Final rosters from the {new Date().getFullYear()} live draft.</p>
+      <TeamStandings players={roster} isMobile={isMobile} embedded />
+      {draft.picks?.length > 0 && (
+        <div style={{ marginTop: 28 }}>
+          <h3 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 12 }}>📋 Draft Order</h3>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 8 }}>
+            {draft.picks.map((p) => {
+              const m = teamMeta(p.team);
+              return (
+                <div key={p.pick} style={{ display: "flex", alignItems: "center", gap: 10, background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderLeft: `4px solid ${m ? m.color : COLORS.border}`, borderRadius: 8, padding: "9px 13px" }}>
+                  <span style={{ color: COLORS.creamDim, fontWeight: 700, fontSize: 13, minWidth: 24 }}>{p.pick}</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, flex: 1 }}>{p.player}</span>
+                  <TeamBadge team={p.team} small />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DraftBoardPage({ players, draft }) {
   const isMobile = useIsMobile();
   const attendingPlayers = players.filter((p) => p.attending2026);
   const sorted = [...attendingPlayers]
@@ -446,6 +607,9 @@ function DraftBoardPage({ players }) {
       if (b.avg === null) return -1;
       return a.avg - b.avg;
     });
+
+  // Once every attending player has a team, the board splits into team standings
+  if (draft?.complete) return <TeamStandings players={sorted} isMobile={isMobile} />;
 
   // Desktop gets dedicated Low / High columns; mobile folds them under the name
   const gridCols = isMobile ? "34px 1fr auto" : "40px 1fr auto auto auto auto auto";
@@ -622,50 +786,146 @@ function ItineraryPage() {
   );
 }
 
-function PointsPage() {
-  const events = [
-    { name: "Baseball (Thursday)", format: "TBD", pts: 1, teamJohn: null, teamBrian: null },
-    { name: "Coral Canyon — 2v2 Matchplay", format: "1pt per match", pts: 4, teamJohn: null, teamBrian: null },
-    { name: "Coral Canyon — 2v2 Scramble/Alt Shot", format: "1pt per match", pts: 4, teamJohn: null, teamBrian: null },
-    { name: "Sand Hollow — 2v2 Matchplay", format: "1pt per match", pts: 4, teamJohn: null, teamBrian: null },
-    { name: "Sand Hollow — 2v2 Scramble/Alt Shot", format: "1pt per match", pts: 4, teamJohn: null, teamBrian: null },
-    { name: "Copper Rock — 1v1 Singles", format: "1pt per match", pts: 8, teamJohn: null, teamBrian: null },
-  ];
-  const totalJohn = events.reduce((s, e) => s + (e.teamJohn || 0), 0);
-  const totalBrian = events.reduce((s, e) => s + (e.teamBrian || 0), 0);
+// Session display metadata — keyed by the Session value in the Matches sheet tab.
+// Unknown session names still render, just without the course/format subtitle.
+const SESSION_META = {
+  "Baseball": { label: "Baseball", detail: "Thursday · Team vs Team", icon: "⚾" },
+  "Fri AM":   { label: "Coral Canyon — Morning",   detail: "Friday · 2v2 Matchplay", icon: "🌅" },
+  "Fri PM":   { label: "Coral Canyon — Afternoon", detail: "Friday · 2v2 Scramble / Alt Shot", icon: "🌇" },
+  "Sat AM":   { label: "Sand Hollow — Morning",    detail: "Saturday · 2v2 Matchplay", icon: "🌅" },
+  "Sat PM":   { label: "Sand Hollow — Afternoon",  detail: "Saturday · 2v2 Scramble / Alt Shot", icon: "🌇" },
+  "Sun":      { label: "Copper Rock — Championship", detail: "Sunday · 1v1 Singles", icon: "🏆" },
+};
+
+function PointsPage({ matches }) {
+  const isMobile = useIsMobile();
+  const john = TEAMS[0], brian = TEAMS[1];
+
+  // No Matches tab yet (or it's empty) — fall back to the static points schedule
+  if (!matches || !matches.sessions?.length) {
+    const events = [
+      { name: "Baseball (Thursday)", format: "Team vs Team", pts: 1 },
+      { name: "Coral Canyon — 2v2 Matchplay", format: "1pt per match", pts: 4 },
+      { name: "Coral Canyon — 2v2 Scramble/Alt Shot", format: "1pt per match", pts: 4 },
+      { name: "Sand Hollow — 2v2 Matchplay", format: "1pt per match", pts: 4 },
+      { name: "Sand Hollow — 2v2 Scramble/Alt Shot", format: "1pt per match", pts: 4 },
+      { name: "Copper Rock — 1v1 Singles", format: "1pt per match", pts: 8 },
+    ];
+    return (
+      <div style={{ color: COLORS.cream }}>
+        <h1 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 6 }}>🏅 Points</h1>
+        <p style={{ color: COLORS.creamDim, marginBottom: 24, fontSize: 14 }}>25 points on the line. Live match results appear here once play begins.</p>
+        <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 14, overflow: "hidden" }}>
+          {events.map((e, i) => (
+            <div key={e.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: i < events.length - 1 ? `1px solid ${COLORS.border}` : "none" }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 15 }}>{e.name}</div>
+                <div style={{ color: COLORS.creamDim, fontSize: 12 }}>{e.format}</div>
+              </div>
+              <div style={{ color: COLORS.tan, fontWeight: 700, fontSize: 16, whiteSpace: "nowrap" }}>{e.pts} pt{e.pts > 1 ? "s" : ""}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const { sessions, johnPoints, brianPoints, totalPoints, remaining, clinch } = matches;
+  const leader = johnPoints > brianPoints ? john : brianPoints > johnPoints ? brian : null;
+  const clinched = johnPoints >= clinch ? john : brianPoints >= clinch ? brian : null;
+
+  const scoreCol = (team, pts, align) => (
+    <div style={{ textAlign: align, flex: 1 }}>
+      <div style={{ color: team.color, fontFamily: "Playfair Display, serif", fontSize: isMobile ? 17 : 22 }}>{team.name}</div>
+      <div style={{ fontSize: isMobile ? 52 : 72, fontWeight: 700, lineHeight: 1, color: team.color, fontVariantNumeric: "tabular-nums" }}>{pts}</div>
+    </div>
+  );
 
   return (
     <div style={{ color: COLORS.cream }}>
-      <h1 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 6 }}>🏅 Points Tracker</h1>
-      <p style={{ color: COLORS.creamDim, marginBottom: 24, fontSize: 14 }}>25 total points up for grabs. First team to 13 wins.</p>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 32 }}>
-        {[{ name: "Team John", score: totalJohn }, { name: "Team Brian", score: totalBrian }].map((team) => (
-          <div key={team.name} style={{ background: COLORS.bgCard, border: `2px solid ${COLORS.border}`, borderRadius: 14, padding: 24, textAlign: "center" }}>
-            <div style={{ fontFamily: "Playfair Display, serif", fontSize: 18, color: COLORS.cream, marginBottom: 8 }}>{team.name}</div>
-            <div style={{ fontFamily: "Playfair Display, serif", fontSize: 56, fontWeight: 700, color: COLORS.orangeLight }}>{team.score}</div>
-            <div style={{ color: COLORS.creamDim, fontSize: 13 }}>points</div>
-          </div>
-        ))}
-      </div>
-      <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 14, overflow: "hidden" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto auto", padding: "10px 16px", borderBottom: `1px solid ${COLORS.border}`, background: COLORS.bgCardLight, gap: 8 }}>
-          <div style={{ color: COLORS.creamDim, fontSize: 11, textTransform: "uppercase" }}>Event</div>
-          <div style={{ color: COLORS.creamDim, fontSize: 11, textTransform: "uppercase", textAlign: "center", minWidth: 60 }}>Total</div>
-          <div style={{ color: COLORS.creamDim, fontSize: 11, textTransform: "uppercase", textAlign: "center", minWidth: 70 }}>Team John</div>
-          <div style={{ color: COLORS.creamDim, fontSize: 11, textTransform: "uppercase", textAlign: "center", minWidth: 70 }}>Team Brian</div>
+      <h1 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 6 }}>🏅 Points</h1>
+      <p style={{ color: COLORS.creamDim, marginBottom: 20, fontSize: 14 }}>
+        {clinched
+          ? `${clinched.name} has clinched the 2026 Village Classic.`
+          : `First to ${clinch} clinches · ${remaining} of ${totalPoints} still on the board.`}
+      </p>
+
+      {/* ── Live scoreboard ─────────────────────────────────────────────── */}
+      <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: isMobile ? "18px 14px" : "22px 30px", marginBottom: 22 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {scoreCol(john, johnPoints, "left")}
+          <div style={{ color: COLORS.creamDim, fontSize: 13, textTransform: "uppercase", letterSpacing: 2, paddingBottom: 6 }}>vs</div>
+          {scoreCol(brian, brianPoints, "right")}
         </div>
-        {events.map((e, i) => (
-          <div key={e.name} style={{ display: "grid", gridTemplateColumns: "1fr auto auto auto", padding: "14px 16px", borderBottom: i < events.length - 1 ? `1px solid ${COLORS.border}` : "none", gap: 8, alignItems: "center" }}>
-            <div>
-              <div style={{ color: COLORS.cream, fontSize: 14, fontWeight: 600 }}>{e.name}</div>
-              <div style={{ color: COLORS.creamDim, fontSize: 12 }}>{e.format}</div>
-            </div>
-            <div style={{ color: COLORS.tan, fontWeight: 700, textAlign: "center", minWidth: 60 }}>{e.pts}pt{e.pts !== 1 ? "s" : ""}</div>
-            <div style={{ textAlign: "center", minWidth: 70, color: e.teamJohn !== null ? COLORS.cream : COLORS.creamDim }}>{e.teamJohn !== null ? e.teamJohn : "—"}</div>
-            <div style={{ textAlign: "center", minWidth: 70, color: e.teamBrian !== null ? COLORS.cream : COLORS.creamDim }}>{e.teamBrian !== null ? e.teamBrian : "—"}</div>
-          </div>
-        ))}
+        <div style={{ marginTop: 14, height: 8, borderRadius: 4, background: COLORS.bgCardLight, overflow: "hidden", display: "flex" }}>
+          <div style={{ width: `${(johnPoints / totalPoints) * 100}%`, background: john.color }} />
+          <div style={{ width: `${(brianPoints / totalPoints) * 100}%`, background: brian.color }} />
+        </div>
+        <div style={{ marginTop: 10, textAlign: "center", color: COLORS.creamDim, fontSize: 13 }}>
+          {clinched ? `🏆 ${clinched.name} wins` : leader ? `${leader.name} leads by ${Math.abs(johnPoints - brianPoints)}` : "All square"}
+        </div>
       </div>
+
+      {/* ── Sessions ────────────────────────────────────────────────────── */}
+      {sessions.map((s) => {
+        const meta = SESSION_META[s.name] || { label: s.name, detail: "", icon: "⛳" };
+        const done = s.matches.filter((m) => m.winner).length;
+        return (
+          <div key={s.name} style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 14, overflow: "hidden", marginBottom: 14 }}>
+            <div style={{ padding: "13px 16px", background: COLORS.bgCardLight, borderBottom: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <div>
+                <div style={{ fontFamily: "Playfair Display, serif", fontSize: 18, color: COLORS.tan }}>{meta.icon} {meta.label}</div>
+                {meta.detail && <div style={{ color: COLORS.creamDim, fontSize: 12 }}>{meta.detail}</div>}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ color: COLORS.creamDim, fontSize: 12 }}>{done}/{s.matches.length}</span>
+                <span style={{ fontWeight: 700, fontSize: 16 }}>
+                  <span style={{ color: john.color }}>{s.johnPoints}</span>
+                  <span style={{ color: COLORS.creamDim }}> – </span>
+                  <span style={{ color: brian.color }}>{s.brianPoints}</span>
+                </span>
+              </div>
+            </div>
+            {s.matches.map((m, i) => {
+              const set = m.john || m.brian;
+              const wm = m.winner ? teamMeta(m.winner) : null;
+              // A decided match with no pairings is a whole-team event (e.g. Baseball) —
+              // show the team names rather than "TBD", which would read as missing data.
+              const teamEvent = !set && !!m.winner;
+              const side = (text, team, won, align) => (
+                <div style={{ flex: 1, textAlign: align, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: won ? 700 : 500, color: won ? team.color : m.winner ? COLORS.creamDim : COLORS.cream }}>
+                    {text || (teamEvent ? team.name : <span style={{ color: COLORS.creamDim, fontStyle: "italic" }}>TBD</span>)}
+                  </div>
+                </div>
+              );
+              return (
+                <div key={i} style={{ padding: "12px 16px", borderBottom: i < s.matches.length - 1 ? `1px solid ${COLORS.border}` : "none", opacity: set || m.winner ? 1 : 0.55 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ color: COLORS.creamDim, fontSize: 11, minWidth: 20 }}>{m.match}</span>
+                    {side(m.john, john, m.winner === john.name, "left")}
+                    <div style={{ textAlign: "center", minWidth: 62 }}>
+                      {m.winner ? (
+                        <span style={{ background: `${wm.color}22`, border: `1px solid ${wm.color}`, color: wm.color, borderRadius: 4, padding: "2px 8px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
+                          {wm.name.replace("Team ", "")} +1
+                        </span>
+                      ) : (
+                        <span style={{ color: COLORS.creamDim, fontSize: 11 }}>vs</span>
+                      )}
+                    </div>
+                    {side(m.brian, brian, m.winner === brian.name, "right")}
+                  </div>
+                  {m.puttOff && (
+                    <div style={{ textAlign: "center", marginTop: 6, color: COLORS.tan, fontSize: 11, letterSpacing: 0.5 }}>
+                      ⛳ Decided by putt-off
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1049,10 +1309,7 @@ const clockBtn = {
   fontFamily: "DM Sans, sans-serif",
 };
 
-const CAPTAINS = [
-  { key: "john", name: "John Mullin", team: "Team John", color: "#e86a2f" },
-  { key: "brian", name: "Brian Dalidowicz", team: "Team Brian", color: "#4a9edd" },
-];
+const CAPTAINS = TEAMS.map((t) => ({ name: t.captain, team: t.name, color: t.color }));
 
 // Snake order for 14 picks: J, B, B, J, J, B, B, J, J, B, B, J, J, B
 function snakeOrder(totalPicks) {
@@ -1290,7 +1547,7 @@ function RosterColumn({ idx, roster, playerByName, panel }) {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("home");
-  const [data, setData] = useState({ players: [], articles: [], history: [], historyPhotos: {}, logoUrl: null, recentRounds: [] });
+  const [data, setData] = useState({ players: [], articles: [], history: [], historyPhotos: {}, logoUrl: null, recentRounds: [], draft: null, matches: null });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -1308,6 +1565,8 @@ export default function App() {
           historyPhotos: d.historyPhotos || {},
           logoUrl: d.logoUrl || null,
           recentRounds: d.recentRounds || [],
+          draft: d.draft || null,
+          matches: d.matches || null,
         });
         setLoading(false);
       })
@@ -1327,6 +1586,7 @@ export default function App() {
     { id: "home", label: "🏠 Home" },
     { id: "draftboard", label: "🏆 Draft Board" },
     { id: "players", label: "👤 Players" },
+    { id: "teams", label: "🤝 Teams" },
     { id: "itinerary", label: "📅 Itinerary" },
     { id: "points", label: "🏅 Points" },
     { id: "tripdetails", label: "🗺️ Trip Details" },
@@ -1389,10 +1649,11 @@ export default function App() {
         {!loading && !error && (
           <>
             {activeTab === "home" && <HomePage data={data} countdown={countdown} />}
-            {activeTab === "draftboard" && <DraftBoardPage players={data.players} />}
+            {activeTab === "draftboard" && <DraftBoardPage players={data.players} draft={data.draft} />}
+            {activeTab === "teams" && <TeamsPage players={data.players} draft={data.draft} />}
             {activeTab === "players" && <PlayersPage players={data.players} />}
             {activeTab === "itinerary" && <ItineraryPage />}
-            {activeTab === "points" && <PointsPage />}
+            {activeTab === "points" && <PointsPage matches={data.matches} />}
             {activeTab === "tripdetails" && <TripDetailsPage />}
             {activeTab === "news" && <NewsPage articles={data.articles} />}
             {activeTab === "history" && <HistoryPage history={data.history} historyPhotos={data.historyPhotos} />}
