@@ -20,6 +20,16 @@ async function fetchSheetTab(tabName) {
   return data.values || [];
 }
 
+// Same as fetchSheetTab but returns [] instead of throwing — for optional tabs
+// like DraftPicks that may not exist yet.
+async function fetchSheetTabSafe(tabName) {
+  try {
+    return await fetchSheetTab(tabName);
+  } catch {
+    return [];
+  }
+}
+
 async function fetchDriveFiles() {
   let files = [];
   let pageToken = null;
@@ -43,11 +53,13 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
 
   try {
-    const [playersRaw, articlesRaw, scoresRaw, historyRaw, driveFiles] = await Promise.all([
+    const [playersRaw, articlesRaw, scoresRaw, historyRaw, draftRaw, matchesRaw, driveFiles] = await Promise.all([
       fetchSheetTab("Players"),
       fetchSheetTab("Articles"),
       fetchSheetTab("Courses"),
       fetchSheetTab("History"),
+      fetchSheetTabSafe("DraftPicks"),
+      fetchSheetTabSafe("Matches"),
       fetchDriveFiles(),
     ]);
 
@@ -149,7 +161,28 @@ export default async function handler(req, res) {
       );
     }
 
-    // Build players array — merge playerMeta + scores
+    // ── Parse DraftPicks tab (Pick, Team, Player, Timestamp) ──────────────────
+    // Captains are never drafted, so seed them onto their own teams first.
+    const TEAM_CAPTAINS = { "Team John": "John Mullin", "Team Brian": "Brian Dalidowicz" };
+    const teamByKey = {};
+    for (const [team, captain] of Object.entries(TEAM_CAPTAINS)) {
+      teamByKey[nameKey(captain)] = team;
+    }
+
+    const draftPicks = draftRaw
+      .slice(1)
+      .filter((row) => row[0] && row[1] && row[2])
+      .map((row) => ({
+        pick: parseInt(row[0], 10),
+        team: (row[1] || "").trim(),
+        player: canonicalName[nameKey(row[2])] || (row[2] || "").trim(),
+        ts: row[3] || "",
+      }))
+      .sort((a, b) => a.pick - b.pick);
+
+    draftPicks.forEach((p) => { teamByKey[nameKey(p.player)] = p.team; });
+
+    // Build players array — merge playerMeta + scores + team
     const players = Object.keys(playerMeta).map((name) => ({
       name,
       handicap: playerMeta[name].handicap,
@@ -158,7 +191,17 @@ export default async function handler(req, res) {
       years: playerMeta[name].years,
       attending2026: playerMeta[name].attending2026,
       scores: scoresByPlayer[nameKey(name)] || [],
+      team: teamByKey[nameKey(name)] || null,
     }));
+
+    // Draft is "complete" only when every attending player has a team — the site
+    // keeps its pre-draft look until then, so a half-finished draft never leaks out.
+    const attendingPlayers = players.filter((p) => p.attending2026);
+    const draft = {
+      picks: draftPicks,
+      complete: attendingPlayers.length > 0 && attendingPlayers.every((p) => p.team),
+      teams: Object.keys(TEAM_CAPTAINS).map((team) => ({ name: team, captain: TEAM_CAPTAINS[team] })),
+    };
 
     // Recent rounds — last 5 rows of Courses tab (true insertion order)
     const recentRounds = scoreRows.slice(-5).reverse().map((row) => {
@@ -175,6 +218,58 @@ export default async function handler(req, res) {
         photo: meta.photo,
       };
     });
+
+    // ── Parse Matches tab (Session, Match, John, Brian, Winner, PuttOff) ──────
+    // Filled in from Cam's phone during the trip. Rows are pre-seeded before the
+    // trip, so a blank Winner just means "not played yet" — never a missing row.
+    // Winner accepts J / B / John / Brian / Team John / Team Brian, any case.
+    function normWinner(v) {
+      const s = (v || "").trim().toLowerCase();
+      if (!s) return null;
+      if (s === "j" || s.startsWith("john") || s === "team john") return "Team John";
+      if (s === "b" || s.startsWith("brian") || s === "team brian") return "Team Brian";
+      return null;
+    }
+    const isTruthy = (v) => ["true", "yes", "y", "x", "1", "✓"].includes((v || "").trim().toLowerCase());
+
+    const matchRows = matchesRaw.slice(1).filter((row) => (row[0] || "").trim());
+    const sessionOrder = [];
+    const sessionMap = {};
+
+    matchRows.forEach((row) => {
+      const session = (row[0] || "").trim();
+      if (!sessionMap[session]) {
+        sessionMap[session] = { name: session, matches: [], johnPoints: 0, brianPoints: 0 };
+        sessionOrder.push(session);
+      }
+      const winner = normWinner(row[4]);
+      sessionMap[session].matches.push({
+        match: (row[1] || "").toString().trim(),
+        john: (row[2] || "").trim(),
+        brian: (row[3] || "").trim(),
+        winner,
+        puttOff: isTruthy(row[5]),
+      });
+      if (winner === "Team John") sessionMap[session].johnPoints += 1;
+      if (winner === "Team Brian") sessionMap[session].brianPoints += 1;
+    });
+
+    const sessions = sessionOrder.map((n) => sessionMap[n]);
+    const johnPoints = sessions.reduce((a, s) => a + s.johnPoints, 0);
+    const brianPoints = sessions.reduce((a, s) => a + s.brianPoints, 0);
+    const totalPoints = matchRows.length;
+
+    const matches = {
+      sessions,
+      johnPoints,
+      brianPoints,
+      totalPoints,
+      played: johnPoints + brianPoints,
+      remaining: totalPoints - (johnPoints + brianPoints),
+      // No ties in the Village Classic — every match is decided, so a simple majority clinches
+      clinch: totalPoints > 0 ? Math.floor(totalPoints / 2) + 1 : 0,
+      started: johnPoints + brianPoints > 0,
+    };
 
     // ── Parse Articles tab ─────────────────────────────────────────────────────
     const articleRows = articlesRaw.slice(1);
@@ -203,7 +298,7 @@ export default async function handler(req, res) {
     }
     history.sort((a, b) => parseInt(b.year) - parseInt(a.year));
 
-    res.status(200).json({ players, articles, history, historyPhotos, logoUrl, recentRounds });
+    res.status(200).json({ players, articles, history, historyPhotos, logoUrl, recentRounds, draft, matches });
 
   } catch (err) {
     console.error("sheet.js error:", err);
