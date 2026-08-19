@@ -56,6 +56,44 @@ function formatDiff(diff) {
   return diff > 0 ? `+${diff.toFixed(1)}` : diff.toFixed(1);
 }
 
+// Lowest / highest round relative to a player's personal target
+function getScoreRange(player) {
+  const scores = (player.scores || []).filter((s) => typeof s === "number" && !isNaN(s));
+  if (scores.length === 0) return null;
+  const target = getTarget(player.handicap);
+  const low = Math.min(...scores);
+  const high = Math.max(...scores);
+  return { low, high, lowDiff: low - target, highDiff: high - target };
+}
+
+// Whole numbers render clean (-10, not -10.0); decimals keep one place
+function formatRoundDiff(diff) {
+  if (diff === null || diff === undefined) return "—";
+  if (diff === 0) return "E";
+  const n = Number.isInteger(diff) ? diff : diff.toFixed(1);
+  return diff > 0 ? `+${n}` : `${n}`;
+}
+
+function diffColorFor(diff) {
+  if (diff === null || diff === undefined) return COLORS.creamDim;
+  if (diff <= 0) return "#4caf50";
+  if (diff <= 5) return COLORS.tan;
+  return "#e57373";
+}
+
+// No CSS files in this project, so breakpoints are handled in JS
+function useIsMobile(breakpoint = 700) {
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" ? window.innerWidth < breakpoint : false
+  );
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < breakpoint);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [breakpoint]);
+  return isMobile;
+}
+
 function getTripHistory(player) {
   if (!player.years) return [];
   return TRIP_YEARS
@@ -182,6 +220,7 @@ function PlayerCard({ player, onClick }) {
 function PlayerProfile({ player, onBack }) {
   const avg = getAvgDiff(player);
   const target = getTarget(player.handicap);
+  const range = getScoreRange(player);
   const tripHistory = getTripHistory(player);
   const isAttending = player.attending2026;
 
@@ -208,6 +247,20 @@ function PlayerProfile({ player, onBack }) {
             Rounds: <strong>{player.scores?.length || 0}</strong> &nbsp;|&nbsp;
             Avg vs Target: <strong style={{ color: avg !== null && avg <= 0 ? "#4caf50" : COLORS.orange }}>{avg === null ? "—" : formatDiff(avg)}</strong>
           </div>
+          {range && (
+            <div style={{ fontSize: 15, marginBottom: 8, display: "flex", gap: 18, flexWrap: "wrap" }}>
+              <span style={{ color: COLORS.creamDim }}>
+                Lowest Round:{" "}
+                <strong style={{ color: COLORS.cream }}>{range.low}</strong>{" "}
+                <strong style={{ color: diffColorFor(range.lowDiff) }}>({formatRoundDiff(range.lowDiff)})</strong>
+              </span>
+              <span style={{ color: COLORS.creamDim }}>
+                Highest Round:{" "}
+                <strong style={{ color: COLORS.cream }}>{range.high}</strong>{" "}
+                <strong style={{ color: diffColorFor(range.highDiff) }}>({formatRoundDiff(range.highDiff)})</strong>
+              </span>
+            </div>
+          )}
           {player.description && (
             <div style={{ borderTop: `1px solid ${COLORS.border}`, paddingTop: 12, marginTop: 12 }}>
               <div style={{ color: COLORS.tan, fontSize: 13, fontWeight: 700, marginBottom: 6, textTransform: "uppercase", letterSpacing: 1 }}>Bio</div>
@@ -383,9 +436,10 @@ function HomePage({ data, countdown }) {
 }
 
 function DraftBoardPage({ players }) {
+  const isMobile = useIsMobile();
   const attendingPlayers = players.filter((p) => p.attending2026);
   const sorted = [...attendingPlayers]
-    .map((p) => ({ ...p, avg: getAvgDiff(p) }))
+    .map((p) => ({ ...p, avg: getAvgDiff(p), range: getScoreRange(p) }))
     .sort((a, b) => {
       if (a.avg === null && b.avg === null) return 0;
       if (a.avg === null) return 1;
@@ -393,34 +447,71 @@ function DraftBoardPage({ players }) {
       return a.avg - b.avg;
     });
 
+  // Desktop gets dedicated Low / High columns; mobile folds them under the name
+  const gridCols = isMobile ? "34px 1fr auto" : "40px 1fr auto auto auto auto auto";
+  const headStyle = { color: COLORS.creamDim, fontSize: 11, textTransform: "uppercase", textAlign: "right", paddingRight: 16 };
+  const cellStyle = { color: COLORS.creamDim, textAlign: "right", paddingRight: 16, fontSize: 14 };
+
   return (
     <div style={{ color: COLORS.cream }}>
       <h1 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 6 }}>🏆 Draft Board</h1>
-      <p style={{ color: COLORS.creamDim, marginBottom: 24, fontSize: 14 }}>Ranked by average score vs personal target (72 + handicap + 3). Lower = better.</p>
+      <p style={{ color: COLORS.creamDim, marginBottom: 24, fontSize: 14 }}>Ranked by average score vs personal target (72 + handicap + 3). Lower = better. Low / High show each player's best and worst round relative to that target.</p>
       <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 14, overflow: "hidden" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "40px 1fr auto auto auto", gap: 0, padding: "10px 16px", borderBottom: `1px solid ${COLORS.border}`, background: COLORS.bgCardLight }}>
+        <div style={{ display: "grid", gridTemplateColumns: gridCols, gap: 0, padding: "10px 16px", borderBottom: `1px solid ${COLORS.border}`, background: COLORS.bgCardLight }}>
           <div style={{ color: COLORS.creamDim, fontSize: 11, textTransform: "uppercase" }}>#</div>
           <div style={{ color: COLORS.creamDim, fontSize: 11, textTransform: "uppercase" }}>Player</div>
-          <div style={{ color: COLORS.creamDim, fontSize: 11, textTransform: "uppercase", textAlign: "right", paddingRight: 16 }}>HCP</div>
-          <div style={{ color: COLORS.creamDim, fontSize: 11, textTransform: "uppercase", textAlign: "right", paddingRight: 16 }}>Target</div>
+          {!isMobile && <div style={headStyle}>HCP</div>}
+          {!isMobile && <div style={headStyle}>Target</div>}
+          {!isMobile && <div style={headStyle}>Low</div>}
+          {!isMobile && <div style={headStyle}>High</div>}
           <div style={{ color: COLORS.creamDim, fontSize: 11, textTransform: "uppercase", textAlign: "right" }}>Avg Diff</div>
         </div>
         {sorted.map((p, i) => (
-          <div key={p.name} style={{ display: "grid", gridTemplateColumns: "40px 1fr auto auto auto", gap: 0, padding: "14px 16px", borderBottom: i < sorted.length - 1 ? `1px solid ${COLORS.border}` : "none", alignItems: "center" }}>
+          <div key={p.name} style={{ display: "grid", gridTemplateColumns: gridCols, gap: 0, padding: "14px 16px", borderBottom: i < sorted.length - 1 ? `1px solid ${COLORS.border}` : "none", alignItems: "center" }}>
             <div style={{ color: i < 3 ? [COLORS.tan, "#9e9e9e", "#cd7f32"][i] : COLORS.creamDim, fontWeight: 700 }}>{i + 1}</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
               {p.photo ? (
-                <img src={p.photo} alt={p.name} style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover" }} />
+                <img src={p.photo} alt={p.name} style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
               ) : (
-                <div style={{ width: 36, height: 36, borderRadius: "50%", background: COLORS.bgCardLight, display: "flex", alignItems: "center", justifyContent: "center" }}>⛳</div>
+                <div style={{ width: 36, height: 36, borderRadius: "50%", background: COLORS.bgCardLight, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>⛳</div>
               )}
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <div style={{ color: COLORS.cream, fontWeight: 600, fontSize: 15 }}>{p.name}</div>
-                <div style={{ color: COLORS.creamDim, fontSize: 12 }}>{p.scores?.length || 0} round{p.scores?.length !== 1 ? "s" : ""}</div>
+                <div style={{ color: COLORS.creamDim, fontSize: 12 }}>
+                  {p.scores?.length || 0} round{p.scores?.length !== 1 ? "s" : ""}
+                  {isMobile && p.range && (
+                    <>
+                      {" · "}
+                      <span style={{ color: diffColorFor(p.range.lowDiff) }}>L {formatRoundDiff(p.range.lowDiff)}</span>
+                      {" · "}
+                      <span style={{ color: diffColorFor(p.range.highDiff) }}>H {formatRoundDiff(p.range.highDiff)}</span>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
-            <div style={{ color: COLORS.creamDim, textAlign: "right", paddingRight: 16, fontSize: 14 }}>{p.handicap}</div>
-            <div style={{ color: COLORS.creamDim, textAlign: "right", paddingRight: 16, fontSize: 14 }}>{getTarget(p.handicap)}</div>
+            {!isMobile && <div style={cellStyle}>{p.handicap}</div>}
+            {!isMobile && <div style={cellStyle}>{getTarget(p.handicap)}</div>}
+            {!isMobile && (
+              <div style={{ ...cellStyle, fontWeight: 600 }}>
+                {p.range ? (
+                  <>
+                    <span style={{ color: diffColorFor(p.range.lowDiff) }}>{formatRoundDiff(p.range.lowDiff)}</span>
+                    <span style={{ color: COLORS.creamDim, fontSize: 11 }}> ({p.range.low})</span>
+                  </>
+                ) : "—"}
+              </div>
+            )}
+            {!isMobile && (
+              <div style={{ ...cellStyle, fontWeight: 600 }}>
+                {p.range ? (
+                  <>
+                    <span style={{ color: diffColorFor(p.range.highDiff) }}>{formatRoundDiff(p.range.highDiff)}</span>
+                    <span style={{ color: COLORS.creamDim, fontSize: 11 }}> ({p.range.high})</span>
+                  </>
+                ) : "—"}
+              </div>
+            )}
             <div style={{ textAlign: "right", fontWeight: 700, fontSize: 16, color: p.avg === null ? COLORS.creamDim : p.avg <= 0 ? "#4caf50" : p.avg <= 5 ? COLORS.tan : "#e57373" }}>
               {p.avg === null ? "—" : formatDiff(p.avg)}
             </div>
