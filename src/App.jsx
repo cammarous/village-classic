@@ -23,8 +23,8 @@ const COURSES = [
 
 const SCHEDULE = [
   { day: "Thu Sep 3", events: ["4:00 PM — Airbnb Check-in", "Live Team Draft", "Baseball (1pt)", "Dinner"] },
-  { day: "Fri Sep 4", events: ["Coral Canyon Golf Course", "8:30 AM — 2v2 Matchplay (4pts)", "2:40 PM — 2v2 Scramble/Alt Shot (4pts)", "Dinner at Home"] },
-  { day: "Sat Sep 5", events: ["Sand Hollow Resort", "7:40 AM — 2v2 Matchplay (4pts)", "3:00 PM — 2v2 Scramble/Alt Shot (4pts)", "Dinner"] },
+  { day: "Fri Sep 4", events: ["Coral Canyon Golf Course", "8:30 AM — 2v2 Matchplay (4pts)", "2:40 PM — 2v2 Scramble (4pts)", "Dinner at Home"] },
+  { day: "Sat Sep 5", events: ["Sand Hollow Resort", "7:40 AM — 2v2 Matchplay (4pts)", "3:00 PM — Modified Alternate Shot (4pts)", "Dinner"] },
   { day: "Sun Sep 6", events: ["Copper Rock Golf Course", "9:36 AM — Championship 1v1 Matchplay (8pts)", "Championship Award"] },
   { day: "Mon Sep 7", events: ["10:00 AM — Airbnb Checkout", "Depart"] },
 ];
@@ -791,9 +791,9 @@ function ItineraryPage() {
 const SESSION_META = {
   "Baseball": { label: "Baseball", detail: "Thursday · Team vs Team", icon: "⚾" },
   "Fri AM":   { label: "Coral Canyon — Morning",   detail: "Friday · 2v2 Matchplay", icon: "🌅" },
-  "Fri PM":   { label: "Coral Canyon — Afternoon", detail: "Friday · 2v2 Scramble / Alt Shot", icon: "🌇" },
+  "Fri PM":   { label: "Coral Canyon — Afternoon", detail: "Friday · Full 2v2 Scramble", icon: "🌇" },
   "Sat AM":   { label: "Sand Hollow — Morning",    detail: "Saturday · 2v2 Matchplay", icon: "🌅" },
-  "Sat PM":   { label: "Sand Hollow — Afternoon",  detail: "Saturday · 2v2 Scramble / Alt Shot", icon: "🌇" },
+  "Sat PM":   { label: "Sand Hollow — Afternoon",  detail: "Saturday · Full Modified Alternate Shot", icon: "🌇" },
   "Sun":      { label: "Copper Rock — Championship", detail: "Sunday · 1v1 Singles", icon: "🏆" },
 };
 
@@ -806,9 +806,9 @@ function PointsPage({ matches }) {
     const events = [
       { name: "Baseball (Thursday)", format: "Team vs Team", pts: 1 },
       { name: "Coral Canyon — 2v2 Matchplay", format: "1pt per match", pts: 4 },
-      { name: "Coral Canyon — 2v2 Scramble/Alt Shot", format: "1pt per match", pts: 4 },
+      { name: "Coral Canyon — 2v2 Scramble", format: "1pt per match", pts: 4 },
       { name: "Sand Hollow — 2v2 Matchplay", format: "1pt per match", pts: 4 },
-      { name: "Sand Hollow — 2v2 Scramble/Alt Shot", format: "1pt per match", pts: 4 },
+      { name: "Sand Hollow — Modified Alternate Shot", format: "1pt per match", pts: 4 },
       { name: "Copper Rock — 1v1 Singles", format: "1pt per match", pts: 8 },
     ];
     return (
