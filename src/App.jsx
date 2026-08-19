@@ -306,7 +306,7 @@ function PlayerProfile({ player, onBack }) {
                 <div key={i} style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: "10px 8px", textAlign: "center" }}>
                   <div style={{ color: COLORS.creamDim, fontSize: 12 }}>R{i + 1}</div>
                   <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.cream }}>{score}</div>
-                  <div style={{ fontSize: 12, color: diff <= 0 ? "#4caf50" : COLORS.orange }}>{formatDiff(diff)}</div>
+                  <div style={{ fontSize: 12, color: diff <= 0 ? "#4caf50" : COLORS.orange }}>{formatRoundDiff(diff)}</div>
                 </div>
               );
             })}
@@ -1023,6 +1023,237 @@ function BogeyChat() {
 }
 
 // ─── App Shell ────────────────────────────────────────────────────────────────
+// ─── Visual Big Board — live draft display (?view=bigboard) ──────────────────
+// Inspired by the Internet Invitational draft night: captains alternate picks in
+// snake order, on the clock banner, best available callout, running pick ticker.
+//
+// Controls (draft operator only — hidden from the TV with ?clean=1):
+//   click a player card  → assigns to whichever team is on the clock
+//   ⌫ Undo               → removes the last pick
+//   Picks also POST to /api/draftpicks so the sheet has a permanent record.
+
+const CAPTAINS = [
+  { key: "john", name: "John Mullin", team: "Team John", color: "#e86a2f" },
+  { key: "brian", name: "Brian Dalidowicz", team: "Team Brian", color: "#4a9edd" },
+];
+
+// Snake order for 14 picks: J, B, B, J, J, B, B, J, J, B, B, J, J, B
+function snakeOrder(totalPicks) {
+  const order = [];
+  let round = 0;
+  while (order.length < totalPicks) {
+    const first = round % 2 === 0 ? 0 : 1;
+    order.push(first, 1 - first);
+    round++;
+  }
+  return order.slice(0, totalPicks);
+}
+
+function BigBoard({ players }) {
+  const params = new URLSearchParams(window.location.search);
+  const clean = params.get("clean") === "1";
+  const secret = params.get("k") || "";
+
+  const pool = players
+    .filter((p) => p.attending2026)
+    .filter((p) => !CAPTAINS.some((c) => c.name === p.name))
+    .map((p) => ({ ...p, avg: getAvgDiff(p), range: getScoreRange(p) }))
+    .sort((a, b) => {
+      if (a.avg === null && b.avg === null) return 0;
+      if (a.avg === null) return 1;
+      if (b.avg === null) return -1;
+      return a.avg - b.avg;
+    });
+
+  const ORDER = snakeOrder(pool.length);
+  const [picks, setPicks] = useState([]);          // [{ player, teamIdx }]
+  const [clock, setClock] = useState(60);
+  const [syncing, setSyncing] = useState(false);
+
+  // Load any picks already recorded (survives a refresh mid-draft)
+  useEffect(() => {
+    fetch("/api/draftpicks")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d.picks?.length) return;
+        setPicks(d.picks.map((p) => ({
+          player: p.player,
+          teamIdx: CAPTAINS.findIndex((c) => c.team === p.team),
+        })).filter((p) => p.teamIdx !== -1));
+      })
+      .catch(() => {});
+  }, []);
+
+  const drafted = new Set(picks.map((p) => p.player));
+  const available = pool.filter((p) => !drafted.has(p.name));
+  const onClockIdx = picks.length < ORDER.length ? ORDER[picks.length] : null;
+  const onClock = onClockIdx === null ? null : CAPTAINS[onClockIdx];
+  const bestAvailable = available[0] || null;
+  const done = onClock === null;
+
+  // Pick timer — resets on every pick
+  useEffect(() => {
+    setClock(60);
+    if (done) return;
+    const t = setInterval(() => setClock((c) => (c > 0 ? c - 1 : 0)), 1000);
+    return () => clearInterval(t);
+  }, [picks.length, done]);
+
+  function makePick(playerName) {
+    if (done || drafted.has(playerName)) return;
+    const teamIdx = onClockIdx;
+    const pickNo = picks.length + 1;
+    setPicks((prev) => [...prev, { player: playerName, teamIdx }]);
+    if (!secret) return;
+    setSyncing(true);
+    fetch("/api/draftpicks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-publish-secret": secret },
+      body: JSON.stringify({ pick: pickNo, team: CAPTAINS[teamIdx].team, player: playerName }),
+    }).catch(() => {}).finally(() => setSyncing(false));
+  }
+
+  const rosterFor = (idx) => picks.filter((p) => p.teamIdx === idx).map((p) => p.player);
+  const playerByName = (n) => pool.find((p) => p.name === n);
+  const round = Math.floor(picks.length / 2) + 1;
+
+  const panel = { background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 14 };
+
+  return (
+    <div style={{ height: "100vh", overflow: "hidden", background: COLORS.bg, color: COLORS.cream, fontFamily: "DM Sans, sans-serif", padding: 18, display: "flex", flexDirection: "column", gap: 12, boxSizing: "border-box" }}>
+      {/* This view returns before App's global <style>, so it needs its own reset */}
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@400;500;600&display=swap');
+        * { box-sizing: border-box; }
+        body { margin: 0; }
+      `}</style>
+      {/* ── On the clock banner ─────────────────────────────────────────── */}
+      <div style={{ ...panel, padding: "16px 26px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, borderLeft: `10px solid ${onClock ? onClock.color : COLORS.tan}` }}>
+        <div>
+          <div style={{ color: COLORS.creamDim, fontSize: 13, textTransform: "uppercase", letterSpacing: 2 }}>
+            {done ? "Draft Complete" : `Round ${round} · Pick ${picks.length + 1} of ${ORDER.length}`}
+          </div>
+          <div style={{ fontFamily: "Playfair Display, serif", fontSize: 40, lineHeight: 1.1, color: onClock ? onClock.color : COLORS.tan }}>
+            {done ? "🏆 Rosters are set" : `${onClock.team} is on the clock`}
+          </div>
+        </div>
+        {bestAvailable && !done && (
+          <div style={{ textAlign: "center", padding: "0 24px" }}>
+            <div style={{ color: COLORS.creamDim, fontSize: 12, textTransform: "uppercase", letterSpacing: 2 }}>Best Available</div>
+            <div style={{ fontSize: 26, fontWeight: 700, fontFamily: "Playfair Display, serif" }}>{bestAvailable.name}</div>
+            <div style={{ color: diffColorFor(bestAvailable.avg), fontSize: 15, fontWeight: 700 }}>
+              {formatDiff(bestAvailable.avg)} avg · HCP {bestAvailable.handicap}
+            </div>
+          </div>
+        )}
+        {!done && (
+          <div style={{ textAlign: "center", minWidth: 130 }}>
+            <div style={{ color: COLORS.creamDim, fontSize: 12, textTransform: "uppercase", letterSpacing: 2 }}>On the Clock</div>
+            <div style={{ fontSize: 60, fontWeight: 700, lineHeight: 1, fontVariantNumeric: "tabular-nums", color: clock <= 10 ? "#e57373" : COLORS.cream }}>
+              :{String(clock).padStart(2, "0")}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 1fr", gap: 14, flex: 1, minHeight: 0 }}>
+        {/* ── Team John ──────────────────────────────────────────────────── */}
+        {[0].map((idx) => <RosterColumn key={idx} idx={idx} roster={rosterFor(idx)} playerByName={playerByName} panel={panel} />)}
+
+        {/* ── Available pool ─────────────────────────────────────────────── */}
+        <div style={{ ...panel, padding: 16, overflow: "auto" }}>
+          <div style={{ color: COLORS.tan, fontSize: 13, textTransform: "uppercase", letterSpacing: 2, marginBottom: 12, fontWeight: 700 }}>
+            Available · {available.length}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: 12, alignContent: "start" }}>
+            {available.map((p, i) => (
+              <div
+                key={p.name}
+                onClick={() => !clean && makePick(p.name)}
+                style={{
+                  background: COLORS.bgCardLight,
+                  border: `2px solid ${i === 0 ? COLORS.orange : COLORS.border}`,
+                  borderRadius: 12, padding: 13, display: "flex", gap: 12, alignItems: "center",
+                  cursor: clean ? "default" : "pointer",
+                }}
+              >
+                {p.photo ? (
+                  <img src={p.photo} alt={p.name} style={{ width: 58, height: 58, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+                ) : (
+                  <div style={{ width: 58, height: 58, borderRadius: "50%", background: COLORS.bgCard, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 27, flexShrink: 0 }}>⛳</div>
+                )}
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: 20, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
+                  <div style={{ color: COLORS.creamDim, fontSize: 14 }}>
+                    HCP {p.handicap} · Tgt {getTarget(p.handicap)}
+                    {p.range && <> · <span style={{ color: diffColorFor(p.range.lowDiff) }}>L {formatRoundDiff(p.range.lowDiff)}</span></>}
+                  </div>
+                </div>
+                <div style={{ fontWeight: 700, fontSize: 24, color: diffColorFor(p.avg) }}>{formatDiff(p.avg)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Team Brian ─────────────────────────────────────────────────── */}
+        {[1].map((idx) => <RosterColumn key={idx} idx={idx} roster={rosterFor(idx)} playerByName={playerByName} panel={panel} />)}
+      </div>
+
+      {/* ── Pick ticker ────────────────────────────────────────────────────── */}
+      <div style={{ ...panel, padding: "10px 18px", display: "flex", alignItems: "center", gap: 14, overflow: "hidden" }}>
+        <span style={{ color: COLORS.tan, fontSize: 12, textTransform: "uppercase", letterSpacing: 2, fontWeight: 700, flexShrink: 0 }}>Picks</span>
+        <div style={{ display: "flex", gap: 10, overflow: "hidden", flex: 1 }}>
+          {picks.length === 0 && <span style={{ color: COLORS.creamDim, fontSize: 14 }}>Waiting on the first pick…</span>}
+          {[...picks].reverse().map((p, i) => (
+            <span key={i} style={{ background: COLORS.bgCardLight, border: `1px solid ${CAPTAINS[p.teamIdx].color}`, borderRadius: 20, padding: "5px 13px", fontSize: 13, whiteSpace: "nowrap", flexShrink: 0 }}>
+              <strong style={{ color: CAPTAINS[p.teamIdx].color }}>{picks.length - i}.</strong> {p.player}
+            </span>
+          ))}
+        </div>
+        {!clean && (
+          <button
+            onClick={() => setPicks((prev) => prev.slice(0, -1))}
+            disabled={picks.length === 0}
+            style={{ background: "none", border: `1px solid ${COLORS.border}`, color: COLORS.creamDim, borderRadius: 6, padding: "5px 12px", fontSize: 12, cursor: "pointer", flexShrink: 0 }}
+          >
+            ⌫ Undo{syncing ? " ·" : ""}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RosterColumn({ idx, roster, playerByName, panel }) {
+  const cap = CAPTAINS[idx];
+  return (
+    <div style={{ ...panel, padding: 16, borderTop: `6px solid ${cap.color}`, overflow: "auto" }}>
+      <div style={{ fontFamily: "Playfair Display, serif", fontSize: 26, color: cap.color, marginBottom: 2 }}>{cap.team}</div>
+      <div style={{ color: COLORS.creamDim, fontSize: 12, marginBottom: 14 }}>Captain: {cap.name} · {roster.length + 1} of 8</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ background: COLORS.bgCardLight, border: `1px dashed ${cap.color}`, borderRadius: 8, padding: "9px 12px", fontSize: 14 }}>
+          <strong>{cap.name}</strong>
+          <span style={{ color: COLORS.creamDim, fontSize: 11, marginLeft: 6 }}>CAPTAIN</span>
+        </div>
+        {roster.map((name, i) => {
+          const p = playerByName(name);
+          return (
+            <div key={name} style={{ background: COLORS.bgCardLight, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: "9px 12px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                <span style={{ color: COLORS.creamDim, fontSize: 11, marginRight: 6 }}>{i + 1}</span>{name}
+              </span>
+              {p && <span style={{ fontSize: 13, fontWeight: 700, color: diffColorFor(p.avg) }}>{formatDiff(p.avg)}</span>}
+            </div>
+          );
+        })}
+        {Array.from({ length: Math.max(0, 7 - roster.length) }).map((_, i) => (
+          <div key={`e${i}`} style={{ border: `1px dashed ${COLORS.border}`, borderRadius: 8, padding: "9px 12px", color: COLORS.creamDim, fontSize: 13 }}>—</div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState("home");
   const [data, setData] = useState({ players: [], articles: [], history: [], historyPhotos: {}, logoUrl: null, recentRounds: [] });
@@ -1048,6 +1279,15 @@ export default function App() {
       })
       .catch((e) => { setError(e.message); setLoading(false); });
   }, []);
+
+  // Full-screen draft display — no nav, no chat bubble. ?view=bigboard
+  const isBigBoard = new URLSearchParams(window.location.search).get("view") === "bigboard";
+  if (isBigBoard) {
+    if (loading) {
+      return <div style={{ minHeight: "100vh", background: COLORS.bg, color: COLORS.tan, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, fontFamily: "Playfair Display, serif" }}>Loading the board…</div>;
+    }
+    return <BigBoard players={data.players} />;
+  }
 
   const tabs = [
     { id: "home", label: "🏠 Home" },
