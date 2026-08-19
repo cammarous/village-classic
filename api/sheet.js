@@ -5,6 +5,13 @@ const SHEET_ID = "19xwerN5gm34zoz138GCESbn14ORTys6QTmJ4pi-7HCY";
 const DRIVE_FOLDER_ID = "1DJKTNgO3KWBPjrytSB-ecRmMmCYJHFgK";
 const API_KEY = process.env.GOOGLE_API_KEY;
 
+// Normalize a player name for matching across tabs.
+// Fixes casing typos in the Courses tab (e.g. "cameron Marous" → matches "Cameron Marous")
+// and collapses stray/double spaces. Display always uses the Players tab spelling.
+function nameKey(name) {
+  return (name || "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 async function fetchSheetTab(tabName) {
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(tabName)}?key=${API_KEY}`;
   const res = await fetch(url);
@@ -87,11 +94,13 @@ export default async function handler(req, res) {
     });
 
     const playerRows = playersRaw.slice(1);
-    const playerMeta = {};
+    const playerMeta = {};        // keyed by canonical display name
+    const canonicalName = {};     // nameKey → canonical display name
 
     playerRows.forEach((row) => {
-      const name = row[0] || "";
+      const name = (row[0] || "").trim().replace(/\s+/g, " ");
       if (!name) return;
+      canonicalName[nameKey(name)] = name;
       const handicap = parseFloat(row[1]) || 0;
       const description = row[2] || "";
       const firstName = name.split(" ")[0];
@@ -120,14 +129,25 @@ export default async function handler(req, res) {
     // ── Parse Courses tab (Player, Score — newest rows = most recent) ──────────
     const scoreRows = scoresRaw.slice(1).filter((row) => row[0] && row[1]);
 
+    // Keyed by nameKey() so casing/spacing typos in the Courses tab still match a player
     const scoresByPlayer = {};
+    const unmatchedScoreNames = new Set();
     scoreRows.forEach((row) => {
-      const name = row[0].trim();
+      const key = nameKey(row[0]);
       const score = parseFloat(row[1]);
-      if (!name || isNaN(score)) return;
-      if (!scoresByPlayer[name]) scoresByPlayer[name] = [];
-      scoresByPlayer[name].push(score);
+      if (!key || isNaN(score)) return;
+      if (!canonicalName[key]) unmatchedScoreNames.add(row[0].trim());
+      if (!scoresByPlayer[key]) scoresByPlayer[key] = [];
+      scoresByPlayer[key].push(score);
     });
+
+    // Surfaces genuine misspellings (not just casing) in the Vercel logs
+    if (unmatchedScoreNames.size > 0) {
+      console.warn(
+        "sheet.js: Courses tab names with no matching player row:",
+        [...unmatchedScoreNames].join(", ")
+      );
+    }
 
     // Build players array — merge playerMeta + scores
     const players = Object.keys(playerMeta).map((name) => ({
@@ -137,12 +157,14 @@ export default async function handler(req, res) {
       photo: playerMeta[name].photo,
       years: playerMeta[name].years,
       attending2026: playerMeta[name].attending2026,
-      scores: scoresByPlayer[name] || [],
+      scores: scoresByPlayer[nameKey(name)] || [],
     }));
 
     // Recent rounds — last 5 rows of Courses tab (true insertion order)
     const recentRounds = scoreRows.slice(-5).reverse().map((row) => {
-      const name = row[0].trim();
+      const key = nameKey(row[0]);
+      // Prefer the Players tab spelling so a lowercase typo doesn't show on the site
+      const name = canonicalName[key] || row[0].trim();
       const score = parseFloat(row[1]);
       const meta = playerMeta[name] || { handicap: 0, description: "", photo: null };
       const target = 72 + meta.handicap + 3;
