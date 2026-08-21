@@ -20,12 +20,34 @@ async function fetchSheetTab(tabName) {
   return data.values || [];
 }
 
-// Same as fetchSheetTab but returns [] instead of throwing — for optional tabs
-// like DraftPicks that may not exist yet.
-async function fetchSheetTabSafe(tabName) {
+// List the spreadsheet's actual tab titles.
+// Tab lookups are exact and case-sensitive in the Sheets API, so a tab named
+// "matches" or "Matches " (trailing space) silently returns nothing. Resolving
+// real titles first makes tab names forgiving the same way player names are.
+async function listTabTitles() {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?fields=sheets.properties.title&key=${API_KEY}`;
+  const res = await fetch(url);
+  if (!res.ok) return [];
+  const data = await res.json();
+  return (data.sheets || []).map((s) => s.properties && s.properties.title).filter(Boolean);
+}
+
+function resolveTab(titles, wanted) {
+  const w = wanted.trim().toLowerCase();
+  return titles.find((t) => t.trim().toLowerCase() === w) || null;
+}
+
+// Fetch by fuzzy tab name; returns [] if the tab genuinely isn't there.
+async function fetchSheetTabSafe(titles, wanted) {
+  const actual = resolveTab(titles, wanted);
+  if (!actual) {
+    console.warn(`sheet.js: no tab matching "${wanted}". Tabs present: ${titles.join(", ")}`);
+    return [];
+  }
   try {
-    return await fetchSheetTab(tabName);
-  } catch {
+    return await fetchSheetTab(actual);
+  } catch (e) {
+    console.warn(`sheet.js: failed reading tab "${actual}": ${e.message}`);
     return [];
   }
 }
@@ -53,13 +75,17 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
 
   try {
-    const [playersRaw, articlesRaw, scoresRaw, historyRaw, draftRaw, matchesRaw, driveFiles] = await Promise.all([
-      fetchSheetTab("Players"),
-      fetchSheetTab("Articles"),
-      fetchSheetTab("Courses"),
-      fetchSheetTab("History"),
-      fetchSheetTabSafe("DraftPicks"),
-      fetchSheetTabSafe("Matches"),
+    // Resolve real tab titles once, so every lookup below is case/space tolerant
+    const tabTitles = await listTabTitles();
+
+    const [playersRaw, articlesRaw, scoresRaw, historyRaw, draftRaw, matchesRaw, tripInfoRaw, driveFiles] = await Promise.all([
+      fetchSheetTabSafe(tabTitles, "Players"),
+      fetchSheetTabSafe(tabTitles, "Articles"),
+      fetchSheetTabSafe(tabTitles, "Courses"),
+      fetchSheetTabSafe(tabTitles, "History"),
+      fetchSheetTabSafe(tabTitles, "DraftPicks"),
+      fetchSheetTabSafe(tabTitles, "Matches"),
+      fetchSheetTabSafe(tabTitles, "TripInfo"),
       fetchDriveFiles(),
     ]);
 
@@ -271,6 +297,21 @@ export default async function handler(req, res) {
       started: johnPoints + brianPoints > 0,
     };
 
+    // ── Parse TripInfo tab (Section, Label, Value) ────────────────────────────
+    // Free-form trip logistics Cam edits from his phone. Sections render as cards
+    // in sheet order; a row with a blank Label renders as a standalone note.
+    const tripInfoOrder = [];
+    const tripInfoMap = {};
+    tripInfoRaw.slice(1).forEach((row) => {
+      const section = (row[0] || "").trim();
+      const label = (row[1] || "").trim();
+      const value = (row[2] || "").trim();
+      if (!section || (!label && !value)) return;
+      if (!tripInfoMap[section]) { tripInfoMap[section] = { name: section, items: [] }; tripInfoOrder.push(section); }
+      tripInfoMap[section].items.push({ label, value });
+    });
+    const tripInfo = tripInfoOrder.map((n) => tripInfoMap[n]);
+
     // ── Parse Articles tab ─────────────────────────────────────────────────────
     const articleRows = articlesRaw.slice(1);
     const articles = articleRows.map((row) => ({
@@ -298,7 +339,13 @@ export default async function handler(req, res) {
     }
     history.sort((a, b) => parseInt(b.year) - parseInt(a.year));
 
-    res.status(200).json({ players, articles, history, historyPhotos, logoUrl, recentRounds, draft, matches });
+    res.status(200).json({ players, articles, history, historyPhotos, logoUrl, recentRounds, draft, matches, tripInfo,
+      meta: {
+        tabs: tabTitles,
+        missingTabs: ["Players", "Articles", "Courses", "History", "DraftPicks", "Matches"]
+          .filter((t) => !resolveTab(tabTitles, t)),
+      },
+    });
 
   } catch (err) {
     console.error("sheet.js error:", err);
