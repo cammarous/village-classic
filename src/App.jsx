@@ -1037,7 +1037,20 @@ function PlayersPage({ players }) {
   );
 }
 
-function ItineraryPage() {
+// Drive times live in the TripInfo sheet tab under Section "Drive Times",
+// with the course name as the Label — so Cam sets verified numbers from his
+// phone rather than trusting anything hardcoded against a tee time.
+function driveTimeFor(tripInfo, courseName) {
+  const sec = (tripInfo || []).find((x) => x.name.trim().toLowerCase() === "drive times");
+  if (!sec) return null;
+  const key = courseName.trim().toLowerCase();
+  const hit = sec.items.find((it) => it.label && (
+    key.includes(it.label.trim().toLowerCase()) || it.label.trim().toLowerCase().includes(key)
+  ));
+  return hit ? hit.value : null;
+}
+
+function ItineraryPage({ tripInfo }) {
   return (
     <div style={{ color: COLORS.cream }}>
       <h1 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 6 }}>📅 Itinerary</h1>
@@ -1063,6 +1076,11 @@ function ItineraryPage() {
           <div key={c.name} style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 18 }}>
             <div style={{ fontFamily: "Playfair Display, serif", color: COLORS.cream, fontSize: 17, fontWeight: 700, marginBottom: 4 }}>{c.name}</div>
             <div style={{ color: COLORS.tan, fontSize: 14, marginBottom: 4 }}>{c.day}</div>
+            {driveTimeFor(tripInfo, c.name) && (
+              <div style={{ color: COLORS.creamDim, fontSize: 13, marginBottom: 6 }}>
+                🚗 {driveTimeFor(tripInfo, c.name)} from the house
+              </div>
+            )}
             <a href={`https://www.google.com/maps/place/?q=place_id:${c.placeId}`} target="_blank" rel="noopener noreferrer" style={{ color: COLORS.orangeLight, fontSize: 13, textDecoration: "none" }}>
               View on Google Maps →
             </a>
@@ -1700,7 +1718,7 @@ function BigBoard({ players }) {
   const [picks, setPicks] = useState([]);          // [{ player, teamIdx }]
   const [clock, setClock] = useState(PICK_SECONDS);
   const [paused, setPaused] = useState(false);
-  const [syncing, setSyncing] = useState(false);
+  const [sync, setSync] = useState({ state: secret ? "idle" : "off" });
 
   // Load any picks already recorded (survives a refresh mid-draft)
   useEffect(() => {
@@ -1735,18 +1753,30 @@ function BigBoard({ players }) {
     return () => clearInterval(t);
   }, [done, paused]);
 
+  // Picks MUST reach the sheet or the rest of the site never sees the draft.
+  // Every failure here is surfaced loudly — a silent catch means finding out
+  // on Friday morning that Thursday night was never saved.
   function makePick(playerName) {
     if (done || drafted.has(playerName)) return;
     const teamIdx = onClockIdx;
     const pickNo = picks.length + 1;
     setPicks((prev) => [...prev, { player: playerName, teamIdx }]);
-    if (!secret) return;
-    setSyncing(true);
+    if (!secret) { setSync({ state: "off" }); return; }
+    setSync({ state: "saving" });
     fetch("/api/draftpicks", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-publish-secret": secret },
       body: JSON.stringify({ pick: pickNo, team: CAPTAINS[teamIdx].team, player: playerName }),
-    }).catch(() => {}).finally(() => setSyncing(false));
+    })
+      .then(async (r) => {
+        if (r.ok) return setSync({ state: "ok", at: pickNo });
+        const body = await r.text().catch(() => "");
+        setSync({
+          state: "error",
+          msg: r.status === 401 ? "Wrong key — picks are NOT saving" : `Save failed (${r.status}) ${body.slice(0, 80)}`,
+        });
+      })
+      .catch((e) => setSync({ state: "error", msg: `Network error — picks are NOT saving (${e.message})` }));
   }
 
   const rosterFor = (idx) => picks.filter((p) => p.teamIdx === idx).map((p) => p.player);
@@ -1763,6 +1793,20 @@ function BigBoard({ players }) {
         * { box-sizing: border-box; }
         body { margin: 0; }
       `}</style>
+      {/* ── Save status — impossible to miss if picks aren't persisting ──── */}
+      {(sync.state === "off" || sync.state === "error") && (
+        <div style={{ background: "#5c1a1a", border: "2px solid #e57373", borderRadius: 10, padding: "12px 18px", color: "#ffd9d9", fontSize: 15, fontWeight: 600 }}>
+          ⚠️ {sync.state === "off"
+            ? "PICKS ARE NOT BEING SAVED — the board is missing its key. Add  &k=YOUR_PUBLISH_SECRET  to the URL and reload."
+            : sync.msg}
+        </div>
+      )}
+      {sync.state === "ok" && (
+        <div style={{ color: "#4caf50", fontSize: 12, textAlign: "right", letterSpacing: 1 }}>
+          ✓ pick {sync.at} saved to the sheet
+        </div>
+      )}
+
       {/* ── On the clock banner ─────────────────────────────────────────── */}
       <div style={{ ...panel, padding: "16px 26px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, borderLeft: `10px solid ${onClock ? onClock.color : COLORS.tan}` }}>
         <div>
@@ -1864,7 +1908,7 @@ function BigBoard({ players }) {
             disabled={picks.length === 0}
             style={{ background: "none", border: `1px solid ${COLORS.border}`, color: COLORS.creamDim, borderRadius: 6, padding: "5px 12px", fontSize: 12, cursor: "pointer", flexShrink: 0 }}
           >
-            ⌫ Undo{syncing ? " ·" : ""}
+            ⌫ Undo{sync.state === "saving" ? " ·" : ""}
           </button>
         )}
       </div>
@@ -2012,7 +2056,7 @@ export default function App() {
             {activeTab === "teams" && <TeamsPage players={data.players} draft={data.draft} />}
             {activeTab === "rules" && <RulesPage />}
             {activeTab === "players" && <PlayersPage players={data.players} />}
-            {activeTab === "itinerary" && <ItineraryPage />}
+            {activeTab === "itinerary" && <ItineraryPage tripInfo={data.tripInfo} />}
             {activeTab === "points" && <PointsPage matches={data.matches} />}
             {activeTab === "tripdetails" && <TripDetailsPage tripInfo={data.tripInfo} />}
             {activeTab === "news" && <NewsPage articles={data.articles} />}
