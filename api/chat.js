@@ -15,12 +15,19 @@ async function fetchSheetTab(tabName) {
 
 // ─── Build live context from all Sheet tabs ───────────────────────────────────
 
+// DraftPicks and Matches may be empty or absent before the trip — never fail on them
+async function fetchSheetTabSafe(tabName) {
+  try { return await fetchSheetTab(tabName); } catch { return []; }
+}
+
 async function buildLiveContext() {
-  const [playersRaw, articlesRaw, historyRaw, bogeyContextRaw] = await Promise.all([
+  const [playersRaw, articlesRaw, historyRaw, bogeyContextRaw, draftRaw, matchesRaw] = await Promise.all([
     fetchSheetTab("Players"),
     fetchSheetTab("Articles"),
     fetchSheetTab("History"),
     fetchSheetTab("BogeyContext"),
+    fetchSheetTabSafe("DraftPicks"),
+    fetchSheetTabSafe("Matches"),
   ]);
 
   // Players — Name, Handicap, Description, 2021, 2022, 2023, 2024, 2025, 2026
@@ -67,13 +74,50 @@ async function buildLiveContext() {
     .filter(Boolean)
     .join("\n");
 
-  return { players, recentArticles, history, bogeyContext };
+  // ── Draft results ───────────────────────────────────────────────────────────
+  const TEAM_CAPTAINS = { "Team John": "John Mullin", "Team Brian": "Brian Dalidowicz" };
+  const rosters = { "Team John": ["John Mullin"], "Team Brian": ["Brian Dalidowicz"] };
+  const draftPicks = draftRaw.slice(1)
+    .filter(r => r[0] && r[1] && r[2])
+    .map(r => ({ pick: parseInt(r[0], 10), team: (r[1] || "").trim(), player: (r[2] || "").trim() }))
+    .sort((a, b) => a.pick - b.pick);
+  draftPicks.forEach(p => { if (rosters[p.team]) rosters[p.team].push(p.player); });
+
+  // ── Match results ───────────────────────────────────────────────────────────
+  function normWinner(v) {
+    const t = (v || "").trim().toLowerCase();
+    if (!t) return null;
+    if (t === "j" || t.startsWith("john")) return "Team John";
+    if (t === "b" || t.startsWith("brian")) return "Team Brian";
+    return null;
+  }
+  const matchRows = matchesRaw.slice(1).filter(r => (r[0] || "").trim());
+  const matches = matchRows.map(r => ({
+    session: (r[0] || "").trim(),
+    match: (r[1] || "").toString().trim(),
+    john: (r[2] || "").trim(),
+    brian: (r[3] || "").trim(),
+    winner: normWinner(r[4]),
+    puttOff: ["true","yes","y","x","1"].includes((r[5] || "").trim().toLowerCase()),
+  }));
+  const johnPoints = matches.filter(m => m.winner === "Team John").length;
+  const brianPoints = matches.filter(m => m.winner === "Team Brian").length;
+  const totalPoints = matches.length;
+
+  return {
+    players, recentArticles, history, bogeyContext,
+    draftPicks, rosters, matches, johnPoints, brianPoints, totalPoints,
+  };
 }
 
 // ─── System Prompt ────────────────────────────────────────────────────────────
 
 function buildSystemPrompt(userName, liveContext) {
-  const { players, recentArticles, history, bogeyContext } = liveContext;
+  const {
+    players, recentArticles, history, bogeyContext,
+    draftPicks = [], rosters = {}, matches = [],
+    johnPoints = 0, brianPoints = 0, totalPoints = 0,
+  } = liveContext;
 
   const nameContext = userName
     ? `The user's name is ${userName}. Use their name naturally throughout — not every message, just enough to feel personal. On your very first response, welcome them warmly. If their name matches a Village Classic player (check the player list below), add one sardonic line referencing their specific Village Classic history or reputation. If not a player name, just give a warm welcome and let them know what you can help with.`
@@ -108,13 +152,41 @@ ADDITIONAL CONTEXT (live updates from the Commissioner):
 ${bogeyContext}
 `.trim() : "";
 
+  // ── LIVE TRIP STATE — teams and running score ─────────────────────────────
+  const draftDone = draftPicks.length > 0;
+  const played = johnPoints + brianPoints;
+  const clinch = totalPoints > 0 ? Math.floor(totalPoints / 2) + 1 : 13;
+
+  const teamsSection = draftDone ? `
+2026 TEAMS (from the live draft — this is real, current, and you should use it):
+Team John (Captain John Mullin): ${(rosters["Team John"] || []).join(", ")}
+Team Brian (Captain Brian Dalidowicz): ${(rosters["Team Brian"] || []).join(", ")}
+Draft order: ${draftPicks.map(p => `${p.pick}. ${p.player} (${p.team.replace("Team ", "")})`).join(", ")}
+`.trim() : "2026 TEAMS: The draft has NOT happened yet. It is live on Thursday September 3.";
+
+  const completed = matches.filter(m => m.winner);
+  const upcoming = matches.filter(m => !m.winner && (m.john || m.brian));
+  const scoreSection = played > 0 ? `
+LIVE SCORE — Team John ${johnPoints}, Team Brian ${brianPoints} (of ${totalPoints} points, first to ${clinch} clinches).
+${johnPoints > brianPoints ? `Team John leads by ${johnPoints - brianPoints}.` : brianPoints > johnPoints ? `Team Brian leads by ${brianPoints - johnPoints}.` : "All square."}
+${johnPoints >= clinch ? "TEAM JOHN HAS CLINCHED." : brianPoints >= clinch ? "TEAM BRIAN HAS CLINCHED." : `${totalPoints - played} points still on the board.`}
+
+COMPLETED MATCHES:
+${completed.map(m => `${m.session} #${m.match}: ${m.john || "Team John"} vs ${m.brian || "Team Brian"} — won by ${m.winner}${m.puttOff ? " (decided by putt-off)" : ""}`).join("\n")}
+${upcoming.length ? `\nPAIRINGS SET, NOT YET PLAYED:\n${upcoming.map(m => `${m.session} #${m.match}: ${m.john} vs ${m.brian}`).join("\n")}` : ""}
+`.trim() : (matches.length
+    ? "LIVE SCORE: No matches have been played yet. Team John 0, Team Brian 0."
+    : "LIVE SCORE: Play has not started.");
+
   return `You are Bogey — the official AI of the Village Classic golf tournament. Think of yourself as a satirical sports commissioner: confident, opinionated, and deeply invested in the mythology of a group of friends who treat a golf trip like it's the Ryder Cup.
 
 Your job: answer questions about the Village Classic. You have full access to history, lore, player profiles, 2026 trip details, and all operational information. The data below is pulled live from the Village Classic database so it is always current.
 
 VOICE: Be entertaining. Use the Village Classic media voice — sardonic, dramatic, occasionally conspiratorial. Light player roasting is encouraged and expected. When someone asks about trip logistics (schedule, tee times, courses, packing, travel), give the accurate answer FIRST, then editorialize. Accuracy on logistics is non-negotiable. Never sacrifice the correct answer for a joke.
 
-OUT OF SCOPE: If someone asks about something you genuinely cannot answer (live scores, current draft results, things that haven't happened yet), say: "That's a question for September. Check back when the bullets are flying." Then offer to help with something you do know.
+LIVE DATA: The TEAMS and LIVE SCORE sections below are pulled fresh from the tournament database every time you answer. If they contain results, they are CURRENT and authoritative — report them confidently. Never tell someone to "check back in September" about the score, the teams, or a match result when that information appears below.
+
+OUT OF SCOPE: Only for things genuinely not in your data — hole-by-hole progress of a match still being played, what someone shot on a specific hole, or events that have not happened yet. Then say: "That's a question for September. Check back when the bullets are flying." Then offer something you do know.
 
 Keep responses concise — 2-4 sentences for most questions. Only go longer if genuinely complex. Never use bullet points or headers — keep it conversational and punchy.
 
@@ -130,6 +202,14 @@ ${championsSection}
 
 ---
 
+${teamsSection}
+
+---
+
+${scoreSection}
+
+---
+
 ${articlesSection}
 
 ---
@@ -140,10 +220,10 @@ ${extraContext}
 
 2026 TRIP
 
-Dates: September 3-7, 2026. Location: St. George, Utah (Airbnb-based trip). Captains: John Mullin (Team John) vs Brian Dalidowicz (Team Brian). Team Item: Custom Hats. Team Prize: Cash to Final Pro Shop. Travel: Fly into St. George Airport or Las Vegas Airport.
+Dates: September 3-7, 2026. Location: St. George, Utah (Airbnb-based trip). Captains: John Mullin (Team John) vs Brian Dalidowicz (Team Brian). Team Item: Custom Hats (handed out on draft night — nobody sees them before then). Team Prize: a flag from Sand Hollow for the winning team; two players on opposite teams may agree to swap it for another item or $50 to spend in the pro shop. Travel: Fly into St. George Airport or Las Vegas Airport.
 
 FULL SCHEDULE:
-Thursday Sep 3: 4:00 PM Airbnb Check-in and Arrival, then Live Team Draft, then Baseball competition (1 point), then Dinner, then Captains set Day 1 matchups.
+Thursday Sep 3: 4:00 PM Airbnb Check-in and Arrival, then 7:30 PM Live Team Draft, then 8:30 PM Baseball competition (1 point), then Dinner, then Captains set Day 1 matchups.
 Friday Sep 4 at Coral Canyon Golf Course (Washington, UT): Breakfast on own, then 8:30 AM Morning Round (2v2 Matchplay), then Lunch at course, then Captains make afternoon matchups, then 2:40 PM Afternoon Round (full 2v2 Scramble), then Dinner at home.
 Saturday Sep 5 at Sand Hollow Resort (Hurricane, UT): Breakfast on own, then 7:40-8:13 AM Morning Round (2v2 Matchplay), then Lunch at course, then Captains assign matchups, then 3:00-3:33 PM Afternoon Round (full Modified Alternate Shot), then Dinner, then Captains make singles pairings.
 Sunday Sep 6 at Copper Rock Golf Course (Hurricane, UT): 9:36 AM Championship Round (1v1 Singles Matchplay), then Championship Award ceremony, then Group hang at Airbnb.
