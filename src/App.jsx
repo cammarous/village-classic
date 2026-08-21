@@ -1701,7 +1701,43 @@ function snakeOrder(totalPicks) {
 function BigBoard({ players }) {
   const params = new URLSearchParams(window.location.search);
   const clean = params.get("clean") === "1";
-  const secret = params.get("k") || "";
+
+  // The key can come from ?k= OR be typed on the board. Typing it is safer:
+  // a URL key is mangled by any +, /, = or # in the secret, and it sits in the
+  // address bar on a TV in front of the whole room.
+  const [secret, setSecret] = useState(() => {
+    const fromUrl = params.get("k") || "";
+    if (fromUrl) return fromUrl;
+    try { return sessionStorage.getItem("vc_draft_key") || ""; } catch { return ""; }
+  });
+  const [keyInput, setKeyInput] = useState("");
+  const [keyTest, setKeyTest] = useState(null);
+
+  function saveKey(v) {
+    const k = (v || "").trim();
+    setSecret(k);
+    try { sessionStorage.setItem("vc_draft_key", k); } catch { /* private mode */ }
+    setSync({ state: k ? "idle" : "off" });
+  }
+
+  // Non-destructive key check: POST with a deliberately incomplete body.
+  // A GOOD key gets past auth and fails validation with 400.
+  // A BAD key never gets past auth and returns 401. Nothing is written either way.
+  async function testKey(k) {
+    setKeyTest("testing…");
+    try {
+      const r = await fetch("/api/draftpicks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-publish-secret": k },
+        body: JSON.stringify({}),
+      });
+      if (r.status === 400) setKeyTest("✓ Key works — picks will save");
+      else if (r.status === 401) setKeyTest("✗ Key rejected (401). Check PUBLISH_SECRET in Vercel.");
+      else setKeyTest(`? Unexpected ${r.status} — ${(await r.text()).slice(0, 120)}`);
+    } catch (e) {
+      setKeyTest(`✗ Network error — ${e.message}`);
+    }
+  }
 
   const pool = players
     .filter((p) => p.attending2026)
@@ -1715,10 +1751,11 @@ function BigBoard({ players }) {
     });
 
   const ORDER = snakeOrder(pool.length);
+  const [sync, setSync] = useState({ state: "idle" });
   const [picks, setPicks] = useState([]);          // [{ player, teamIdx }]
   const [clock, setClock] = useState(PICK_SECONDS);
   const [paused, setPaused] = useState(false);
-  const [sync, setSync] = useState({ state: secret ? "idle" : "off" });
+
 
   // Load any picks already recorded (survives a refresh mid-draft)
   useEffect(() => {
@@ -1794,11 +1831,24 @@ function BigBoard({ players }) {
         body { margin: 0; }
       `}</style>
       {/* ── Save status — impossible to miss if picks aren't persisting ──── */}
-      {(sync.state === "off" || sync.state === "error") && (
+      {(sync.state === "off" || sync.state === "error" || !secret) && !clean && (
         <div style={{ background: "#5c1a1a", border: "2px solid #e57373", borderRadius: 10, padding: "12px 18px", color: "#ffd9d9", fontSize: 15, fontWeight: 600 }}>
-          ⚠️ {sync.state === "off"
-            ? "PICKS ARE NOT BEING SAVED — the board is missing its key. Add  &k=YOUR_PUBLISH_SECRET  to the URL and reload."
-            : sync.msg}
+          <div>⚠️ {!secret
+            ? "PICKS ARE NOT BEING SAVED — no key set. Paste your PUBLISH_SECRET below."
+            : sync.state === "error" ? sync.msg : "PICKS ARE NOT BEING SAVED."}</div>
+          <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <input
+              type="password"
+              value={keyInput}
+              onChange={(e) => setKeyInput(e.target.value)}
+              placeholder="paste PUBLISH_SECRET"
+              style={{ background: "#2a1506", border: `1px solid ${COLORS.border}`, color: COLORS.cream, borderRadius: 6, padding: "7px 11px", fontSize: 14, minWidth: 240, fontFamily: "DM Sans, sans-serif" }}
+            />
+            <button onClick={() => testKey(keyInput)} style={{ ...clockBtn, color: COLORS.cream }}>Test key</button>
+            <button onClick={() => saveKey(keyInput)} style={{ ...clockBtn, color: COLORS.cream }}>Use this key</button>
+            {secret && <span style={{ fontWeight: 400, fontSize: 12, opacity: 0.85 }}>current key length: {secret.length}</span>}
+            {keyTest && <span style={{ fontWeight: 400, fontSize: 13 }}>{keyTest}</span>}
+          </div>
         </div>
       )}
       {sync.state === "ok" && (
