@@ -1230,6 +1230,35 @@ function PointsPage({ matches }) {
   );
 }
 
+// TripInfo values are typed straight into the sheet, so they can contain raw
+// URLs and phone numbers. Render those as real links — a pasted Airbnb URL is
+// otherwise an unclickable 150-character wall that overflows the card.
+const URL_OR_PHONE = /(https?:\/\/[^\s]+)|(\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4})/g;
+
+function LinkedValue({ text }) {
+  const linkStyle = { color: COLORS.orangeLight, textDecoration: "none", borderBottom: `1px dotted ${COLORS.orangeLight}` };
+  const parts = [];
+  let last = 0;
+  for (const m of (text || "").matchAll(URL_OR_PHONE)) {
+    if (m.index > last) parts.push(text.slice(last, m.index));
+    if (m[1]) {
+      // Show a readable label rather than the full query-string monster
+      let label = m[1];
+      try { label = new URL(m[1]).hostname.replace(/^www\./, "") + " ↗"; } catch { /* keep raw */ }
+      parts.push(
+        <a key={m.index} href={m[1]} target="_blank" rel="noopener noreferrer" style={linkStyle}>{label}</a>
+      );
+    } else {
+      parts.push(
+        <a key={m.index} href={`tel:${m[2].replace(/[^\d+]/g, "")}`} style={linkStyle}>{m[2]}</a>
+      );
+    }
+    last = m.index + m[0].length;
+  }
+  if (last < (text || "").length) parts.push(text.slice(last));
+  return <>{parts}</>;
+}
+
 function TripInfoCard({ section }) {
   const icon = TRIPINFO_ICONS[section.name] || "📌";
   return (
@@ -1237,15 +1266,15 @@ function TripInfoCard({ section }) {
       <h2 style={{ fontFamily: "Playfair Display, serif", color: COLORS.orangeLight, marginBottom: 14, fontSize: 18 }}>
         {icon} {section.name}
       </h2>
-      <div style={{ color: COLORS.creamDim, fontSize: 14, lineHeight: 1.8 }}>
+      <div style={{ color: COLORS.creamDim, fontSize: 14, lineHeight: 1.8, overflowWrap: "anywhere" }}>
         {section.items.map((it, i) =>
           it.label ? (
             <div key={i}>
-              <strong style={{ color: COLORS.cream }}>{it.label}:</strong> {it.value}
+              <strong style={{ color: COLORS.cream }}>{it.label}:</strong> <LinkedValue text={it.value} />
             </div>
           ) : (
             // Blank Label = a standalone note rather than a key/value line
-            <div key={i} style={{ marginTop: 8, fontStyle: "italic" }}>{it.value}</div>
+            <div key={i} style={{ marginTop: 8, fontStyle: "italic" }}><LinkedValue text={it.value} /></div>
           )
         )}
       </div>
