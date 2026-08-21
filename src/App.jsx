@@ -22,18 +22,49 @@ const COURSES = [
 ];
 
 const SCHEDULE = [
-  { day: "Thu Sep 3", events: ["4:00 PM — Airbnb Check-in", "Live Team Draft", "Baseball (1pt)", "Dinner"] },
+  { day: "Thu Sep 3", events: ["4:00 PM — Airbnb Check-in", "7:30 PM — Live Team Draft", "8:30 PM — Baseball (1pt)", "Dinner"] },
   { day: "Fri Sep 4", events: ["Coral Canyon Golf Course", "8:30 AM — 2v2 Matchplay (4pts)", "2:40 PM — 2v2 Scramble (4pts)", "Dinner at Home"] },
   { day: "Sat Sep 5", events: ["Sand Hollow Resort", "7:40 AM — 2v2 Matchplay (4pts)", "3:00 PM — Modified Alternate Shot (4pts)", "Dinner"] },
   { day: "Sun Sep 6", events: ["Copper Rock Golf Course", "9:36 AM — Championship 1v1 Matchplay (8pts)", "Championship Award"] },
   { day: "Mon Sep 7", events: ["10:00 AM — Airbnb Checkout", "Depart"] },
 ];
 
+// ─── Trip timeline (Mountain Daylight Time = UTC-6 in September) ─────────────
+// Anchored to UTC so the banner is correct whether a phone is still on Eastern
+// in transit or has switched to Mountain on arrival.
+// Only events with a KNOWN time get an anchor; untimed items ride along as `then`.
+const TRIP_TIMELINE = [
+  { at: "2026-09-03T22:00:00Z", hours: 3.5, icon: "🏠", label: "Airbnb Check-in", detail: "St. George · arrival day",
+    then: "settle in — the draft is at 7:30 PM" },
+  { at: "2026-09-04T01:30:00Z", hours: 1, icon: "📋", label: "Live Team Draft", detail: "Team John vs Team Brian · 14 picks, snake order",
+    then: "Baseball at 8:30" },
+  { at: "2026-09-04T02:30:00Z", hours: 1.5, icon: "⚾", label: "Baseball", detail: "Team vs Team · 1 point",
+    then: "Dinner → captains set Friday morning pairings" },
+  { at: "2026-09-04T14:30:00Z", hours: 5.5, golf: true, icon: "⛳", label: "Coral Canyon — Morning Round", detail: "2v2 Matchplay · 4 points",
+    then: "Lunch at the course → captains set afternoon pairings" },
+  { at: "2026-09-04T20:40:00Z", hours: 5, golf: true, icon: "🌇", label: "Coral Canyon — Afternoon Round", detail: "Full 2v2 Scramble · 4 points",
+    then: "Dinner at the house" },
+  { at: "2026-09-05T13:40:00Z", hours: 5.5, golf: true, icon: "⛳", label: "Sand Hollow — Morning Round", detail: "2v2 Matchplay · 4 points",
+    then: "Lunch at the course → captains set afternoon pairings" },
+  { at: "2026-09-05T21:00:00Z", hours: 5, golf: true, icon: "🌇", label: "Sand Hollow — Afternoon Round", detail: "Full Modified Alternate Shot · 4 points",
+    then: "Dinner → captains make singles pairings" },
+  { at: "2026-09-06T15:36:00Z", hours: 6, golf: true, icon: "🏆", label: "Copper Rock — Championship", detail: "1v1 Singles Matchplay · 8 points",
+    then: "Championship Award → group hang" },
+  { at: "2026-09-07T16:00:00Z", hours: 2, icon: "✈️", label: "Airbnb Checkout", detail: "Depart", then: null },
+];
+
+const TRIPINFO_ICONS = {
+  "The House": "🏡", "Arrivals & Rides": "🚗", "Money": "💵", "Food": "🍽️",
+  "Weather": "🌵", "Contacts": "📞", "Course Notes": "⛳", "Local Knowledge": "🗺️",
+};
+
 const PACKING_LIST = [
   "Golf Clubs", "Golf Shoes", "Golf Balls", "Golf Gloves",
   "3 Days of Golf Outfits", "Evening / Dinner Outfits", "Belts", "Hats",
   "Lounging / Room Clothes", "Swimsuit", "Towel (pool + shower)",
   "Casual Shoes", "Jackets", "Deodorant", "Toothpaste", "Socks", "Underwear",
+  "Sunscreen (SPF 50)", "Lip balm w/ SPF", "Sunglasses", "Insulated water bottle",
+  "Electrolyte packets", "Extra golf shirt per day", "Advil", "Blister/band aids",
 ];
 
 const TRIP_YEARS = ["2021", "2022", "2023", "2024", "2025", "2026"];
@@ -48,6 +79,12 @@ function getAvgDiff(player) {
   const target = getTarget(player.handicap);
   const diffs = player.scores.map((s) => s - target);
   return diffs.reduce((a, b) => a + b, 0) / diffs.length;
+}
+
+// Article and storyline bodies use "||" between paragraphs in the Google Sheet.
+// Always render through this — printing a body directly leaks literal pipes.
+function paragraphs(text) {
+  return (text || "").split("||").map((p) => p.trim()).filter(Boolean);
 }
 
 function formatDiff(diff) {
@@ -361,7 +398,144 @@ function PlayerProfile({ player, onBack }) {
 
 // ─── Pages ───────────────────────────────────────────────────────────────────
 
-function HomePage({ data, countdown }) {
+// Live "what's happening now / what's next" banner. Replaces the countdown
+// once the trip starts, which is exactly when the countdown stops being useful.
+// Test any moment with ?now=2026-09-05T21:00:00Z
+function NowNextBanner() {
+  const override = new URLSearchParams(window.location.search).get("now");
+  const [now, setNow] = useState(() => (override ? new Date(override) : new Date()));
+
+  useEffect(() => {
+    if (override) return;
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, [override]);
+
+  const events = TRIP_TIMELINE.map((e) => ({ ...e, date: new Date(e.at) }));
+  const first = events[0].date;
+  const last = events[events.length - 1].date;
+
+  // Before arrival or after checkout — let the normal countdown/hero do its job
+  if (now < first || now > new Date(last.getTime() + 4 * 3600 * 1000)) return null;
+
+  // An event is "now" only while it's actually running — otherwise we'd still be
+  // calling Saturday's afternoon round "happening now" on Sunday morning.
+  const current = events.find(
+    (e) => e.date <= now && now < new Date(e.date.getTime() + (e.hours || 4) * 3600 * 1000)
+  ) || null;
+  const next = events.find((e) => e.date > now) || null;
+
+  const fmt = (d) =>
+    d.toLocaleTimeString("en-US", { timeZone: "America/Denver", hour: "numeric", minute: "2-digit" });
+
+  let untilStr = null;
+  if (next) {
+    const secs = Math.max(0, Math.floor((next.date - now) / 1000));
+    const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60), s = secs % 60;
+    untilStr = h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${String(s).padStart(2, "0")}s` : `${s}s`;
+  }
+
+  return (
+    <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderLeft: `8px solid ${COLORS.orange}`, borderRadius: 14, padding: "18px 22px", marginBottom: 28 }}>
+      {current && (
+        <>
+          <div style={{ color: COLORS.orangeLight, fontSize: 11, textTransform: "uppercase", letterSpacing: 2, fontWeight: 700 }}>
+            Happening Now
+          </div>
+          <div style={{ fontFamily: "Playfair Display, serif", fontSize: 26, color: COLORS.cream, margin: "2px 0 2px" }}>
+            {current.icon} {current.label}
+          </div>
+          <div style={{ color: COLORS.creamDim, fontSize: 14 }}>
+            {current.detail}{current.then ? ` · then ${current.then}` : ""}
+          </div>
+        </>
+      )}
+      {!current && next && (
+        <div style={{ color: COLORS.creamDim, fontSize: 11, textTransform: "uppercase", letterSpacing: 2, fontWeight: 700, marginBottom: 2 }}>
+          Between Rounds
+        </div>
+      )}
+      {next && (
+        <div style={{ marginTop: current ? 16 : 0, paddingTop: current ? 14 : 0, borderTop: current ? `1px solid ${COLORS.border}` : "none", display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 14, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ color: COLORS.tan, fontSize: 11, textTransform: "uppercase", letterSpacing: 2, fontWeight: 700 }}>Up Next</div>
+            <div style={{ fontSize: 17, color: COLORS.cream, fontWeight: 600 }}>{next.icon} {next.label}</div>
+            <div style={{ color: COLORS.creamDim, fontSize: 13 }}>{next.detail} · {fmt(next.date)} MT</div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ color: COLORS.creamDim, fontSize: 11, textTransform: "uppercase", letterSpacing: 1.5 }}>{next.golf ? "Tees in" : "Starts in"}</div>
+            <div style={{ fontFamily: "Playfair Display, serif", fontSize: 30, color: COLORS.orangeLight, fontVariantNumeric: "tabular-nums", lineHeight: 1.1 }}>{untilStr}</div>
+          </div>
+        </div>
+      )}
+      {!next && (
+        <div style={{ marginTop: 12, color: COLORS.tan, fontSize: 14 }}>
+          That's a wrap on the 2026 Village Classic. See you next year.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Compact live score for the Home page. Reuses the same `matches` payload the
+// Points page is built on — no new data, no new sheet tab.
+function HomeScoreboard({ matches, onOpenPoints }) {
+  const john = TEAMS[0], brian = TEAMS[1];
+  const { johnPoints, brianPoints, totalPoints, remaining, clinch, sessions } = matches;
+  const clinched = johnPoints >= clinch ? john : brianPoints >= clinch ? brian : null;
+  const leader = johnPoints > brianPoints ? john : brianPoints > johnPoints ? brian : null;
+
+  // Most recently decided match, for a one-line "latest result"
+  const decided = sessions.flatMap((s) => s.matches.filter((m) => m.winner).map((m) => ({ ...m, session: s.name })));
+  const latest = decided[decided.length - 1] || null;
+
+  return (
+    <div
+      onClick={onOpenPoints}
+      style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "20px 24px", marginBottom: 40, cursor: onOpenPoints ? "pointer" : "default" }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <span style={{ color: COLORS.tan, fontSize: 11, textTransform: "uppercase", letterSpacing: 2, fontWeight: 700 }}>
+          {clinched ? "Final" : "Live Score"}
+        </span>
+        <span style={{ color: COLORS.creamDim, fontSize: 12 }}>
+          {clinched ? `${clinched.name} wins` : `First to ${clinch} · ${remaining} left`}
+        </span>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ color: john.color, fontFamily: "Playfair Display, serif", fontSize: 18 }}>{john.name}</div>
+          <div style={{ fontSize: 46, fontWeight: 700, lineHeight: 1, color: john.color, fontVariantNumeric: "tabular-nums" }}>{johnPoints}</div>
+        </div>
+        <div style={{ color: COLORS.creamDim, fontSize: 12, textTransform: "uppercase", letterSpacing: 2 }}>vs</div>
+        <div style={{ flex: 1, textAlign: "right" }}>
+          <div style={{ color: brian.color, fontFamily: "Playfair Display, serif", fontSize: 18 }}>{brian.name}</div>
+          <div style={{ fontSize: 46, fontWeight: 700, lineHeight: 1, color: brian.color, fontVariantNumeric: "tabular-nums" }}>{brianPoints}</div>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 12, height: 7, borderRadius: 4, background: COLORS.bgCardLight, overflow: "hidden", display: "flex" }}>
+        <div style={{ width: `${(johnPoints / totalPoints) * 100}%`, background: john.color }} />
+        <div style={{ width: `${(brianPoints / totalPoints) * 100}%`, background: brian.color }} />
+      </div>
+
+      <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+        <span style={{ color: COLORS.creamDim, fontSize: 13 }}>
+          {clinched ? `🏆 ${clinched.name} has clinched` : leader ? `${leader.name} leads by ${Math.abs(johnPoints - brianPoints)}` : "All square"}
+        </span>
+        {latest && (
+          <span style={{ color: COLORS.creamDim, fontSize: 13 }}>
+            Latest: <strong style={{ color: teamMeta(latest.winner)?.color }}>{latest.winner.replace("Team ", "")}</strong> took {latest.session} #{latest.match}
+            {latest.puttOff ? " ⛳" : ""}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function HomePage({ data, countdown, onOpenPoints }) {
   const sorted = [...data.players]
     .filter((p) => p.attending2026)
     .map((p) => ({ ...p, avg: getAvgDiff(p) }))
@@ -372,6 +546,11 @@ function HomePage({ data, countdown }) {
   const recentRounds = data.recentRounds || [];
   const latestArticle = data.articles[0];
 
+  // Once the trip is underway the countdown is dead weight — swap in Now/Next
+  const nowOverride = new URLSearchParams(window.location.search).get("now");
+  const rightNow = nowOverride ? new Date(nowOverride) : new Date();
+  const tripStarted = rightNow >= new Date(TRIP_TIMELINE[0].at);
+
   return (
     <div style={{ color: COLORS.cream }}>
       <div style={{ textAlign: "center", marginBottom: 40, padding: "40px 20px", background: `linear-gradient(180deg, #3a1f08 0%, ${COLORS.bg} 100%)`, borderRadius: 16, border: `1px solid ${COLORS.border}` }}>
@@ -381,8 +560,8 @@ function HomePage({ data, countdown }) {
           </div>
         )}
         <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: "clamp(28px, 6vw, 52px)", margin: "0 0 8px", color: COLORS.cream }}>The Village Classic</h1>
-        <div style={{ color: COLORS.tan, fontSize: 18, marginBottom: 24 }}>St. George, Utah — September 3–7, 2026</div>
-        <div style={{ display: "flex", justifyContent: "center", gap: 16, flexWrap: "wrap" }}>
+        <div style={{ color: COLORS.tan, fontSize: 18, marginBottom: tripStarted ? 0 : 24 }}>St. George, Utah — September 3–7, 2026</div>
+        <div style={{ display: tripStarted ? "none" : "flex", justifyContent: "center", gap: 16, flexWrap: "wrap" }}>
           {[["days", "Days"], ["hours", "Hours"], ["minutes", "Min"], ["seconds", "Sec"]].map(([key, label]) => (
             <div key={key} style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "12px 20px", minWidth: 70, textAlign: "center" }}>
               <div style={{ fontFamily: "Playfair Display, serif", fontSize: 32, fontWeight: 700, color: COLORS.orangeLight }}>{countdown[key] ?? "—"}</div>
@@ -392,15 +571,23 @@ function HomePage({ data, countdown }) {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 40 }}>
-        {[{ name: "Team John", captain: "John Mullin", icon: "👑" }, { name: "Team Brian", captain: "Brian Dalidowicz", icon: "🔥" }].map((team) => (
-          <div key={team.name} style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 20, textAlign: "center" }}>
-            <div style={{ fontSize: 32 }}>{team.icon}</div>
-            <div style={{ fontFamily: "Playfair Display, serif", fontSize: 20, color: COLORS.cream, marginTop: 6 }}>{team.name}</div>
-            <div style={{ color: COLORS.creamDim, fontSize: 14 }}>Captain: {team.captain}</div>
-          </div>
-        ))}
-      </div>
+      <NowNextBanner />
+
+      {/* Once points are on the board the static team cards are dead weight —
+          the same real estate becomes the live scoreboard. */}
+      {data.matches?.played > 0 ? (
+        <HomeScoreboard matches={data.matches} onOpenPoints={onOpenPoints} />
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 40 }}>
+          {[{ name: "Team John", captain: "John Mullin", icon: "👑" }, { name: "Team Brian", captain: "Brian Dalidowicz", icon: "🔥" }].map((team) => (
+            <div key={team.name} style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 20, textAlign: "center" }}>
+              <div style={{ fontSize: 32 }}>{team.icon}</div>
+              <div style={{ fontFamily: "Playfair Display, serif", fontSize: 20, color: COLORS.cream, marginTop: 6 }}>{team.name}</div>
+              <div style={{ color: COLORS.creamDim, fontSize: 14 }}>Captain: {team.captain}</div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 24, marginBottom: 40 }}>
         <div>
@@ -468,7 +655,7 @@ function HomePage({ data, countdown }) {
             <div style={{ fontFamily: "Playfair Display, serif", fontSize: 20, color: COLORS.cream, marginBottom: 6 }}>{latestArticle.title}</div>
             <div style={{ color: COLORS.creamDim, fontSize: 13, marginBottom: 14 }}>{latestArticle.date} — {latestArticle.author}</div>
             <div style={{ color: COLORS.creamDim, fontSize: 14, lineHeight: 1.6, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical" }}>
-              {latestArticle.body}
+              {paragraphs(latestArticle.body).join(" ")}
             </div>
           </div>
         </div>
@@ -592,6 +779,135 @@ function TeamsPage({ players, draft }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Rules ───────────────────────────────────────────────────────────────────
+// Static on purpose: these are settled and change roughly never. If you ever
+// want to edit them from your phone mid-trip, move RULES into a sheet tab.
+const RULE_ONE = {
+  title: "Don't Be An Asshole",
+  body: [
+    "This is Rule #1 and it outranks everything below it. The whole point is a good time and friendly competition between friends.",
+    "**Cheating falls under this rule.** So does anything else that makes the weekend worse for the group.",
+    "That's it. That's the rule.",
+  ],
+};
+
+const RULES = [
+  {
+    icon: "🏌️", title: "Playing the Round",
+    body: [
+      "**Fluff and wipe — fairway only.** If your ball is in the fairway you may improve the lie and clean the ball. Anywhere else — rough, sand, trees, hardpan — you play it as it lies.",
+      "**Everywhere else, the Rules of Golf apply** — with the local exceptions on this page.",
+      "**Everything plays as a red stake.** Out of bounds, lost ball, water — all of it is treated as a lateral hazard. Drop at the spot where the ball crossed or went out, **take your penalty stroke**, and play from the grass there. No stroke and distance, no walking back to the tee, no provisionals.",
+      "**Morning rounds — ball in the hole.** No concessions and no gimmies, even in the 2v2 matchplay. Everyone holes out, every hole. The morning rounds are the ones scored for the Individual Championship, so every card has to be real.",
+      "**One free re-hit per morning round.** One mulligan per player, per morning round, and it costs you no stroke.",
+      "**Gimmies are allowed in the afternoon rounds.** Scramble and Modified Alternate Shot are team formats with no individual score, so give what you like.",
+    ],
+  },
+  {
+    icon: "🎯", title: "Scoring & Your Target",
+    body: [
+      "Every player has a personal target score: **72 (par) + your handicap + 3 buffer strokes**. A 12 handicap plays to 87.",
+      "The Draft Board ranks everyone by average score versus their own target. Lower is better. This is how preseason form is measured and how captains size you up.",
+    ],
+  },
+  {
+    icon: "🏅", title: "Points — 25 on the line",
+    body: [
+      "**Baseball (Thu):** 1 point · **Coral Canyon:** 4 + 4 · **Sand Hollow:** 4 + 4 · **Copper Rock singles:** 8.",
+      "One point per match, winner takes it. **First team to 13 clinches** the Village Classic.",
+      "**The prize:** a flag from Sand Hollow for the winning team. Two players on opposite teams may agree between themselves to swap it for another item, or **$50 to spend in the pro shop**.",
+    ],
+  },
+  {
+    icon: "⛳", title: "The Formats",
+    body: [
+      "**2v2 Matchplay** (Friday & Saturday mornings) — standard team matchplay, and the round that counts toward the Individual Championship.",
+      "**Full 2v2 Scramble** (Friday afternoon) — both partners hit every shot, you play the better one.",
+      "**Full Modified Alternate Shot** (Saturday afternoon) — both partners hit a tee ball on every hole. Pick the ball you want, then play alternate shot from there. **No player may hit two shots in a row on a hole** — so whoever's drive you take, their partner plays the next shot.",
+      "**1v1 Singles Matchplay** (Sunday at Copper Rock) — head to head, 8 points, the whole thing usually rides on it.",
+    ],
+  },
+  {
+    icon: "🥊", title: "Ties — the Putt-Off",
+    body: [
+      "**There are no ties in the Village Classic.** Every match produces a winner.",
+      "If a match finishes level, the teams head to the putting green **after the round** and settle it there.",
+      "**2v2 matches:** alternate shot putting, best of 3 'holes' — the group picks the holes. Tied after three, it goes to **sudden death**.",
+      "**1v1 singles:** the same thing head to head — solo putting, best of 3, then sudden death.",
+      "A match decided this way is marked **decided by putt-off** on the Points page. It goes in the record.",
+    ],
+  },
+  {
+    icon: "🏆", title: "The Individual Championship",
+    body: [
+      "Separate from the team competition, and decided across **the first round of each day** — Friday morning at Coral Canyon, Saturday morning at Sand Hollow, and Sunday at Copper Rock. Three individually scored rounds.",
+      "The champion is the player with the **lowest cumulative score relative to their own target** across those three rounds.",
+      "The afternoon scramble and alternate shot rounds do not count — there's no individual score in those formats.",
+      "**If two players tie:** a playoff hole decides it, if the course will let us. If not, it goes to a solo putt-off under the same rules as a match tiebreaker — best of 3, then sudden death.",
+    ],
+  },
+  {
+    icon: "📋", title: "The Draft",
+    body: [
+      "Thursday, 7:30 PM, live at the house. **John Mullin and Brian Dalidowicz** captain, and both count against their own roster — 8 players per team.",
+      "**14 picks in snake order** (1-2-2-1): John, Brian, Brian, John, John, and so on. Seven picks each.",
+      "Two minutes on the clock per pick. The board is on the TV.",
+    ],
+  },
+];
+
+// Renders **bold** segments without pulling in a markdown library
+function RuleText({ text }) {
+  return (
+    <>
+      {text.split(/(\*\*[^*]+\*\*)/g).map((chunk, i) =>
+        chunk.startsWith("**") && chunk.endsWith("**")
+          ? <strong key={i} style={{ color: COLORS.cream }}>{chunk.slice(2, -2)}</strong>
+          : <span key={i}>{chunk}</span>
+      )}
+    </>
+  );
+}
+
+function RulesPage() {
+  return (
+    <div style={{ color: COLORS.cream }}>
+      <h1 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 6 }}>📖 Rules</h1>
+      <p style={{ color: COLORS.creamDim, marginBottom: 24, fontSize: 14 }}>
+        Settle it here before you settle it on the tee.
+      </p>
+
+      {/* Rule #1 — deliberately outsized. It outranks everything below it. */}
+      <div style={{ background: "linear-gradient(135deg, #4a1d06 0%, #2a1506 100%)", border: `2px solid ${COLORS.orange}`, borderRadius: 16, padding: "26px 26px 22px", marginBottom: 22, boxShadow: "0 4px 24px rgba(193,68,14,0.25)" }}>
+        <div style={{ color: COLORS.orangeLight, fontSize: 12, textTransform: "uppercase", letterSpacing: 3, fontWeight: 700, marginBottom: 6 }}>
+          Rule&nbsp;#1
+        </div>
+        <div style={{ fontFamily: "Playfair Display, serif", fontSize: "clamp(28px, 5vw, 40px)", color: COLORS.cream, lineHeight: 1.1, marginBottom: 14 }}>
+          {RULE_ONE.title}
+        </div>
+        {RULE_ONE.body.map((line, i) => (
+          <p key={i} style={{ color: COLORS.creamDim, fontSize: 15, lineHeight: 1.65, margin: i === RULE_ONE.body.length - 1 ? 0 : "0 0 10px" }}>
+            <RuleText text={line} />
+          </p>
+        ))}
+      </div>
+
+      {RULES.map((r) => (
+        <div key={r.title} style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderLeft: `5px solid ${COLORS.orange}`, borderRadius: 12, padding: "18px 22px", marginBottom: 14 }}>
+          <div style={{ fontFamily: "Playfair Display, serif", fontSize: 21, color: COLORS.tan, marginBottom: 10 }}>
+            {r.icon} {r.title}
+          </div>
+          {r.body.map((line, i) => (
+            <p key={i} style={{ color: COLORS.creamDim, fontSize: 14.5, lineHeight: 1.65, margin: i === r.body.length - 1 ? 0 : "0 0 10px" }}>
+              <RuleText text={line} />
+            </p>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }
@@ -753,25 +1069,9 @@ function ItineraryPage() {
           </div>
         ))}
       </div>
-      <h2 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 14 }}>🗺️ Course Map</h2>
-      <div style={{ borderRadius: 14, overflow: "hidden", border: `1px solid ${COLORS.border}`, marginBottom: 16 }}>
-        <iframe
-          title="Village Classic Courses"
-          width="100%"
-          height="420"
-          style={{ border: "none", display: "block" }}
-          referrerPolicy="no-referrer-when-downgrade"
-          src={`https://www.google.com/maps/embed/v1/place?key=${encodeURIComponent("GOOGLE_MAPS_EMBED_KEY_PLACEHOLDER")}&q=place_id:ChIJkwGuoDlZyoARUI9eYuNjRMQ&zoom=11&center=37.13,-113.41`}
-        />
-      </div>
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-        {COURSES.map((c, i) => (
-          <div key={c.name} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 12, height: 12, borderRadius: "50%", background: [COLORS.orange, COLORS.tan, "#4caf50"][i] }} />
-            <span style={{ color: COLORS.creamDim, fontSize: 13 }}>{c.name}</span>
-          </div>
-        ))}
-      </div>
+      {/* Course Map removed Aug 19, 2026 — the embed key was a hardcoded
+          placeholder, so it rendered as an empty box. The Quick Links below
+          open each course in Google Maps and do the same job. */}
       <div style={{ marginTop: 20, background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 16 }}>
         <div style={{ color: COLORS.tan, fontWeight: 700, marginBottom: 10 }}>📍 Quick Links</div>
         {COURSES.map((c) => (
@@ -930,12 +1230,37 @@ function PointsPage({ matches }) {
   );
 }
 
-function TripDetailsPage() {
+function TripInfoCard({ section }) {
+  const icon = TRIPINFO_ICONS[section.name] || "📌";
+  return (
+    <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 20 }}>
+      <h2 style={{ fontFamily: "Playfair Display, serif", color: COLORS.orangeLight, marginBottom: 14, fontSize: 18 }}>
+        {icon} {section.name}
+      </h2>
+      <div style={{ color: COLORS.creamDim, fontSize: 14, lineHeight: 1.8 }}>
+        {section.items.map((it, i) =>
+          it.label ? (
+            <div key={i}>
+              <strong style={{ color: COLORS.cream }}>{it.label}:</strong> {it.value}
+            </div>
+          ) : (
+            // Blank Label = a standalone note rather than a key/value line
+            <div key={i} style={{ marginTop: 8, fontStyle: "italic" }}>{it.value}</div>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TripDetailsPage({ tripInfo }) {
   return (
     <div style={{ color: COLORS.cream }}>
       <h1 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 6 }}>🗺️ Trip Details</h1>
       <p style={{ color: COLORS.creamDim, marginBottom: 24, fontSize: 14 }}>Everything you need to know before you go.</p>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 24 }}>
+        {/* Everything from the TripInfo sheet tab renders first — Cam edits it from his phone */}
+        {(tripInfo || []).map((section) => <TripInfoCard key={section.name} section={section} />)}
         <div style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 20 }}>
           <h2 style={{ fontFamily: "Playfair Display, serif", color: COLORS.orangeLight, marginBottom: 14, fontSize: 18 }}>✈️ Travel</h2>
           <div style={{ color: COLORS.creamDim, fontSize: 14, lineHeight: 1.8 }}>
@@ -952,7 +1277,8 @@ function TripDetailsPage() {
             <div><strong style={{ color: COLORS.cream }}>Format:</strong> 2 teams of 8 — drafted live on Thursday</div>
             <div><strong style={{ color: COLORS.cream }}>Team John:</strong> Captain — John Mullin</div>
             <div><strong style={{ color: COLORS.cream }}>Team Brian:</strong> Captain — Brian Dalidowicz</div>
-            <div style={{ marginTop: 12 }}><strong style={{ color: COLORS.cream }}>Team Prize:</strong> $$ to winning team's pro shop</div>
+            <div style={{ marginTop: 12 }}><strong style={{ color: COLORS.cream }}>Team Prize:</strong> A flag from Sand Hollow</div>
+            <div style={{ fontSize: 13, marginTop: 2 }}>Two players on opposite teams may agree to swap it for another item, or $50 in the pro shop.</div>
             <div><strong style={{ color: COLORS.cream }}>Team Item:</strong> Custom Hats</div>
           </div>
         </div>
@@ -986,8 +1312,10 @@ function NewsPage({ articles }) {
         <div key={i} style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 24, marginBottom: 16 }}>
           <div style={{ fontFamily: "Playfair Display, serif", fontSize: 20, color: COLORS.cream, marginBottom: 4 }}>{a.title}</div>
           <div style={{ color: COLORS.creamDim, fontSize: 13, marginBottom: 14 }}>{a.date} — {a.author}</div>
-          <div style={{ color: COLORS.creamDim, fontSize: 14, lineHeight: 1.7, whiteSpace: "pre-wrap", overflow: "hidden", maxHeight: expanded === i ? "none" : 100 }}>
-            {a.body}
+          <div style={{ color: COLORS.creamDim, fontSize: 14, lineHeight: 1.7, overflow: "hidden", maxHeight: expanded === i ? "none" : 100 }}>
+            {paragraphs(a.body).map((para, pi) => (
+              <p key={pi} style={{ margin: pi === 0 ? "0 0 12px" : "0 0 12px" }}>{para}</p>
+            ))}
           </div>
           <button onClick={() => setExpanded(expanded === i ? null : i)} style={{ background: "none", border: "none", color: COLORS.orangeLight, cursor: "pointer", fontSize: 13, marginTop: 8, padding: 0 }}>
             {expanded === i ? "Show less ↑" : "Read more ↓"}
@@ -1547,7 +1875,7 @@ function RosterColumn({ idx, roster, playerByName, panel }) {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("home");
-  const [data, setData] = useState({ players: [], articles: [], history: [], historyPhotos: {}, logoUrl: null, recentRounds: [], draft: null, matches: null });
+  const [data, setData] = useState({ players: [], articles: [], history: [], historyPhotos: {}, logoUrl: null, recentRounds: [], draft: null, matches: null, tripInfo: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -1567,6 +1895,7 @@ export default function App() {
           recentRounds: d.recentRounds || [],
           draft: d.draft || null,
           matches: d.matches || null,
+          tripInfo: d.tripInfo || [],
         });
         setLoading(false);
       })
@@ -1589,6 +1918,7 @@ export default function App() {
     { id: "teams", label: "🤝 Teams" },
     { id: "itinerary", label: "📅 Itinerary" },
     { id: "points", label: "🏅 Points" },
+    { id: "rules", label: "📖 Rules" },
     { id: "tripdetails", label: "🗺️ Trip Details" },
     { id: "news", label: "📰 News" },
     { id: "history", label: "🏛️ History" },
@@ -1648,13 +1978,14 @@ export default function App() {
         )}
         {!loading && !error && (
           <>
-            {activeTab === "home" && <HomePage data={data} countdown={countdown} />}
+            {activeTab === "home" && <HomePage data={data} countdown={countdown} onOpenPoints={() => setActiveTab("points")} />}
             {activeTab === "draftboard" && <DraftBoardPage players={data.players} draft={data.draft} />}
             {activeTab === "teams" && <TeamsPage players={data.players} draft={data.draft} />}
+            {activeTab === "rules" && <RulesPage />}
             {activeTab === "players" && <PlayersPage players={data.players} />}
             {activeTab === "itinerary" && <ItineraryPage />}
             {activeTab === "points" && <PointsPage matches={data.matches} />}
-            {activeTab === "tripdetails" && <TripDetailsPage />}
+            {activeTab === "tripdetails" && <TripDetailsPage tripInfo={data.tripInfo} />}
             {activeTab === "news" && <NewsPage articles={data.articles} />}
             {activeTab === "history" && <HistoryPage history={data.history} historyPhotos={data.historyPhotos} />}
           </>
