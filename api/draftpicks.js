@@ -9,10 +9,10 @@
 //
 // Uses the same service account + PUBLISH_SECRET as publish.js.
 import { google } from "googleapis";
- 
+
 const SHEET_ID = "19xwerN5gm34zoz138GCESbn14ORTys6QTmJ4pi-7HCY";
 const TAB = "DraftPicks";
- 
+
 function sheetsClient() {
   const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
   const auth = new google.auth.GoogleAuth({
@@ -21,14 +21,14 @@ function sheetsClient() {
   });
   return google.sheets({ version: "v4", auth });
 }
- 
+
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-publish-secret");
   res.setHeader("Cache-Control", "no-store");
   if (req.method === "OPTIONS") return res.status(200).end();
- 
+
   try {
     // ── Read picks (public) ──────────────────────────────────────────────────
     if (req.method === "GET") {
@@ -48,22 +48,22 @@ export default async function handler(req, res) {
         .sort((a, b) => a.pick - b.pick);
       return res.status(200).json({ picks });
     }
- 
+
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
- 
+
     const secret = req.headers["x-publish-secret"] || req.body?.secret;
     if (!process.env.PUBLISH_SECRET || secret !== process.env.PUBLISH_SECRET) {
       return res.status(401).json({ error: "Unauthorized" });
     }
- 
+
     const sheets = sheetsClient();
- 
+
     // ── Reset ────────────────────────────────────────────────────────────────
     if (req.body?.reset) {
       await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: `${TAB}!A2:D10000` });
       return res.status(200).json({ ok: true, reset: true });
     }
- 
+
     // ── Append a pick ────────────────────────────────────────────────────────
     const { pick, team, player } = req.body || {};
     if (!pick || !team || !player) {
