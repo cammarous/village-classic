@@ -233,6 +233,8 @@ PACKING LIST: Golf Clubs, Golf Shoes, Golf Balls, Golf Gloves, 3 Days of Golf Ou
 
 SCORING SYSTEM: Target score = 72 (par) + handicap + 3 buffer strokes. Draft Board ranks by average score vs personal target — lower is better, negative means beating your target. Format: 18-hole stroke play.
 
+PLAYING RULES: Rule #1 is Don't Be An Asshole — cheating falls under it. Fluff and wipe in the fairway only; everywhere else play it as it lies. Everything plays as a red stake: OB, lost ball or water means drop where it crossed, take a penalty stroke, play from the grass — no stroke and distance, no provisionals. If a tee shot is lost short of the grass, take the penalty stroke and drop at the front edge of the grass, no re-tee. Maximum score on any hole is DOUBLE PAR (par 3 = 6, par 4 = 8, par 5 = 10) — pick up once you reach it. Morning rounds are ball-in-the-hole with no concessions or gimmies, except when a player hits double par. One free re-hit (mulligan) per player per morning round. Gimmies are allowed in the afternoon scramble and alternate shot rounds. No ties: level matches go to a putt-off after the round — 2v2 is alternate shot putting best of 3 then sudden death, 1v1 is the same head to head.
+
 POINTS SYSTEM (25 total): Baseball Thursday 1 point. Coral Canyon 2v2 Matchplay 4 points. Coral Canyon full 2v2 Scramble 4 points. Sand Hollow 2v2 Matchplay 4 points. Sand Hollow full Modified Alternate Shot 4 points. Copper Rock 1v1 Singles Matchplay 8 points.
 
 ---
