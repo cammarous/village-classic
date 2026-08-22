@@ -1658,6 +1658,105 @@ function BogeyChat() {
 }
 
 // ─── App Shell ────────────────────────────────────────────────────────────────
+// ─── Commish Tools ───────────────────────────────────────────────────────────
+function CommishToolsPage({ auth, draft }) {
+  const [busy, setBusy] = useState(null);
+  const [msg, setMsg] = useState(null);
+
+  if (auth.checking) {
+    return <div style={{ color: COLORS.tan, padding: 40, textAlign: "center" }}>Checking…</div>;
+  }
+  if (!auth.unlocked) {
+    return (
+      <DraftLockScreen
+        auth={auth}
+        title="Commish Tools"
+        note="Commissioner only. This unlocks the live draft board and the tools that write to the sheet."
+      />
+    );
+  }
+
+  const picks = draft?.picks || [];
+
+  async function resetDraft() {
+    if (!window.confirm(
+      "FULL RESET\n\nThis clears:\n" +
+      `  • all ${picks.length} draft picks\n` +
+      "  • every match result and pairing on the Matches tab\n\n" +
+      "The 25 match rows stay — only what you filled in is wiped. This cannot be undone."
+    )) return;
+    setBusy("reset"); setMsg(null);
+    try {
+      const r = await fetch("/api/draftpicks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-publish-secret": auth.secret },
+        body: JSON.stringify({ reset: true }),
+      });
+      if (r.ok) {
+        const d = await r.json().catch(() => ({}));
+        setMsg(`✓ Cleared draft picks${d.cleared?.matchResults ? " and all match results" : ""}. Reload to see it.`);
+      } else setMsg(`✗ Failed (${r.status})`);
+    } catch (e) { setMsg(`✗ ${e.message}`); }
+    finally { setBusy(null); }
+  }
+
+  const card = { background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 20, marginBottom: 16 };
+  const btn = { background: COLORS.orange, border: "none", color: "#fff", borderRadius: 8, padding: "11px 18px", fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "DM Sans, sans-serif", textDecoration: "none", display: "inline-block" };
+  const ghost = { ...btn, background: "none", border: `1px solid ${COLORS.border}`, color: COLORS.creamDim, fontWeight: 500 };
+
+  return (
+    <div style={{ color: COLORS.cream }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 10 }}>
+        <h1 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 6 }}>🔒 Commish Tools</h1>
+        <button onClick={auth.lock} style={{ ...ghost, padding: "6px 12px", fontSize: 13 }}>Lock</button>
+      </div>
+      <p style={{ color: COLORS.creamDim, marginBottom: 24, fontSize: 14 }}>Unlocked. Everything here writes to the live sheet.</p>
+
+      <div style={card}>
+        <div style={{ fontFamily: "Playfair Display, serif", fontSize: 19, color: COLORS.orangeLight, marginBottom: 8 }}>📋 Live Draft Board</div>
+        <p style={{ color: COLORS.creamDim, fontSize: 14, lineHeight: 1.6, marginTop: 0 }}>
+          Full-screen board for the TV. Your password carries over — no need to re-enter it.
+        </p>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <a href="?view=bigboard" style={btn}>Open Big Board →</a>
+          <a href="?view=bigboard&clean=1" style={ghost}>Open read-only (second screen)</a>
+        </div>
+      </div>
+
+      <div style={card}>
+        <div style={{ fontFamily: "Playfair Display, serif", fontSize: 19, color: COLORS.orangeLight, marginBottom: 8 }}>🗂️ Draft Status</div>
+        <div style={{ color: COLORS.creamDim, fontSize: 14, lineHeight: 1.9 }}>
+          <div><strong style={{ color: COLORS.cream }}>Picks recorded:</strong> {picks.length} of 14</div>
+          <div><strong style={{ color: COLORS.cream }}>Rosters live on site:</strong> {draft?.complete ? "Yes — Teams page is unlocked" : "Not yet (needs all 14)"}</div>
+          {picks.length > 0 && (
+            <div style={{ marginTop: 8, fontSize: 13 }}>
+              Last pick: #{picks[picks.length - 1].pick} {picks[picks.length - 1].player} → {picks[picks.length - 1].team}
+            </div>
+          )}
+        </div>
+        <div style={{ marginTop: 14, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <button onClick={resetDraft} disabled={busy === "reset"}
+            style={{ ...ghost, borderColor: "#e57373", color: "#e57373", cursor: "pointer" }}>
+            {busy === "reset" ? "Clearing…" : "Reset tournament"}
+          </button>
+          {msg && <span style={{ fontSize: 14, color: msg.startsWith("✓") ? "#4caf50" : "#e57373" }}>{msg}</span>}
+        </div>
+      </div>
+
+      <div style={card}>
+        <div style={{ fontFamily: "Playfair Display, serif", fontSize: 19, color: COLORS.orangeLight, marginBottom: 8 }}>🔧 Diagnostics</div>
+        <p style={{ color: COLORS.creamDim, fontSize: 14, lineHeight: 1.6, marginTop: 0 }}>
+          If something stops saving, this reports which link in the chain broke. Reset also clears every match result, so practice runs leave nothing behind.
+        </p>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <a href="/api/draftpicks?diag=1" target="_blank" rel="noopener noreferrer" style={ghost}>Run self-test →</a>
+          <a href="https://docs.google.com/spreadsheets/d/19xwerN5gm34zoz138GCESbn14ORTys6QTmJ4pi-7HCY/edit" target="_blank" rel="noopener noreferrer" style={ghost}>Open the sheet →</a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Visual Big Board — live draft display (?view=bigboard) ──────────────────
 // Inspired by the Internet Invitational draft night: captains alternate picks in
 // snake order, on the clock banner, best available callout, running pick ticker.
@@ -1666,6 +1765,100 @@ function BogeyChat() {
 //   click a player card  → assigns to whichever team is on the clock
 //   ⌫ Undo               → removes the last pick
 //   Picks also POST to /api/draftpicks so the sheet has a permanent record.
+
+// ─── Commissioner auth ───────────────────────────────────────────────────────
+// One password, verified against the server, shared by the Commish Tools page
+// and the Big Board. Stored in localStorage so one unlock lasts the trip.
+function useDraftAuth() {
+  const [secret, setSecret] = useState(() => {
+    try {
+      const fromUrl = new URLSearchParams(window.location.search).get("k");
+      return fromUrl || localStorage.getItem("vc_draft_key") || "";
+    } catch { return ""; }
+  });
+  const [unlocked, setUnlocked] = useState(false);
+  const [checking, setChecking] = useState(false);
+
+  async function check(candidate) {
+    const r = await fetch("/api/draftpicks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-publish-secret": candidate },
+      body: JSON.stringify({ verify: true }),
+    });
+    if (r.status === 401) throw new Error("Wrong password");
+    if (!r.ok) throw new Error(`Server error ${r.status}`);
+    return true;
+  }
+
+  // Re-verify anything stored, so a changed password locks you out up front
+  // instead of failing silently on the first pick.
+  useEffect(() => {
+    if (!secret) return;
+    let alive = true;
+    setChecking(true);
+    check(secret)
+      .then(() => alive && setUnlocked(true))
+      .catch(() => alive && setUnlocked(false))
+      .finally(() => alive && setChecking(false));
+    return () => { alive = false; };
+  }, [secret]);
+
+  async function unlock(candidate) {
+    await check(candidate);
+    try { localStorage.setItem("vc_draft_key", candidate); } catch { /* private mode */ }
+    setSecret(candidate);
+    setUnlocked(true);
+    return true;
+  }
+
+  function lock() {
+    try { localStorage.removeItem("vc_draft_key"); } catch { /* ignore */ }
+    setSecret("");
+    setUnlocked(false);
+  }
+
+  return { secret, unlocked, checking, unlock, lock };
+}
+
+function DraftLockScreen({ auth, title, note, fullScreen }) {
+  const [pw, setPw] = useState("");
+  const [err, setErr] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true); setErr(null);
+    try { await auth.unlock(pw); }
+    catch (ex) { setErr(ex.message); }
+    finally { setBusy(false); }
+  }
+
+  const wrap = fullScreen
+    ? { minHeight: "100vh", background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, fontFamily: "DM Sans, sans-serif" }
+    : { padding: "40px 0", display: "flex", justifyContent: "center" };
+
+  return (
+    <div style={wrap}>
+      <form onSubmit={submit} style={{ background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderTop: `6px solid ${COLORS.orange}`, borderRadius: 16, padding: 32, maxWidth: 420, width: "100%", textAlign: "center" }}>
+        <div style={{ fontSize: 44, marginBottom: 8 }}>🔒</div>
+        <div style={{ fontFamily: "Playfair Display, serif", fontSize: 26, color: COLORS.tan, marginBottom: 6 }}>{title}</div>
+        <p style={{ color: COLORS.creamDim, fontSize: 14, lineHeight: 1.6, marginTop: 0, marginBottom: 20 }}>{note}</p>
+        <input
+          type="password"
+          value={pw}
+          onChange={(e) => setPw(e.target.value)}
+          placeholder="Commissioner password"
+          autoFocus
+          style={{ width: "100%", background: "#2a1506", border: `1px solid ${COLORS.border}`, color: COLORS.cream, borderRadius: 8, padding: "11px 14px", fontSize: 16, fontFamily: "DM Sans, sans-serif", marginBottom: 12 }}
+        />
+        <button type="submit" disabled={busy || !pw} style={{ width: "100%", background: COLORS.orange, border: "none", color: "#fff", borderRadius: 8, padding: "11px 14px", fontSize: 16, fontWeight: 700, cursor: busy ? "default" : "pointer", opacity: busy || !pw ? 0.6 : 1, fontFamily: "DM Sans, sans-serif" }}>
+          {busy ? "Checking…" : "Unlock"}
+        </button>
+        {err && <div style={{ color: "#e57373", fontSize: 14, marginTop: 12 }}>✗ {err}</div>}
+      </form>
+    </div>
+  );
+}
 
 const PICK_SECONDS = 120; // 2 minutes on the clock per pick
 
@@ -1698,46 +1891,11 @@ function snakeOrder(totalPicks) {
   return order.slice(0, totalPicks);
 }
 
-function BigBoard({ players }) {
+function BigBoard({ players, auth }) {
   const params = new URLSearchParams(window.location.search);
   const clean = params.get("clean") === "1";
 
-  // The key can come from ?k= OR be typed on the board. Typing it is safer:
-  // a URL key is mangled by any +, /, = or # in the secret, and it sits in the
-  // address bar on a TV in front of the whole room.
-  const [secret, setSecret] = useState(() => {
-    const fromUrl = params.get("k") || "";
-    if (fromUrl) return fromUrl;
-    try { return sessionStorage.getItem("vc_draft_key") || ""; } catch { return ""; }
-  });
-  const [keyInput, setKeyInput] = useState("");
-  const [keyTest, setKeyTest] = useState(null);
-
-  function saveKey(v) {
-    const k = (v || "").trim();
-    setSecret(k);
-    try { sessionStorage.setItem("vc_draft_key", k); } catch { /* private mode */ }
-    setSync({ state: k ? "idle" : "off" });
-  }
-
-  // Non-destructive key check: POST with a deliberately incomplete body.
-  // A GOOD key gets past auth and fails validation with 400.
-  // A BAD key never gets past auth and returns 401. Nothing is written either way.
-  async function testKey(k) {
-    setKeyTest("testing…");
-    try {
-      const r = await fetch("/api/draftpicks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-publish-secret": k },
-        body: JSON.stringify({}),
-      });
-      if (r.status === 400) setKeyTest("✓ Key works — picks will save");
-      else if (r.status === 401) setKeyTest("✗ Key rejected (401). Check PUBLISH_SECRET in Vercel.");
-      else setKeyTest(`? Unexpected ${r.status} — ${(await r.text()).slice(0, 120)}`);
-    } catch (e) {
-      setKeyTest(`✗ Network error — ${e.message}`);
-    }
-  }
+  const { secret, unlocked, checking } = auth;
 
   const pool = players
     .filter((p) => p.attending2026)
@@ -1822,6 +1980,13 @@ function BigBoard({ players }) {
 
   const panel = { background: COLORS.bgCard, border: `1px solid ${COLORS.border}`, borderRadius: 14 };
 
+  if (checking) {
+    return <div style={{ minHeight: "100vh", background: COLORS.bg, color: COLORS.tan, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, fontFamily: "Playfair Display, serif" }}>Unlocking the board…</div>;
+  }
+  if (!unlocked) {
+    return <DraftLockScreen auth={auth} fullScreen title="Live Draft Board" note="Enter the commissioner password to run the draft." />;
+  }
+
   return (
     <div style={{ height: "100vh", overflow: "hidden", background: COLORS.bg, color: COLORS.cream, fontFamily: "DM Sans, sans-serif", padding: 18, display: "flex", flexDirection: "column", gap: 12, boxSizing: "border-box" }}>
       {/* This view returns before App's global <style>, so it needs its own reset */}
@@ -1830,25 +1995,9 @@ function BigBoard({ players }) {
         * { box-sizing: border-box; }
         body { margin: 0; }
       `}</style>
-      {/* ── Save status — impossible to miss if picks aren't persisting ──── */}
-      {(sync.state === "off" || sync.state === "error" || !secret) && !clean && (
+      {sync.state === "error" && (
         <div style={{ background: "#5c1a1a", border: "2px solid #e57373", borderRadius: 10, padding: "12px 18px", color: "#ffd9d9", fontSize: 15, fontWeight: 600 }}>
-          <div>⚠️ {!secret
-            ? "PICKS ARE NOT BEING SAVED — no key set. Paste your PUBLISH_SECRET below."
-            : sync.state === "error" ? sync.msg : "PICKS ARE NOT BEING SAVED."}</div>
-          <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
-            <input
-              type="password"
-              value={keyInput}
-              onChange={(e) => setKeyInput(e.target.value)}
-              placeholder="paste PUBLISH_SECRET"
-              style={{ background: "#2a1506", border: `1px solid ${COLORS.border}`, color: COLORS.cream, borderRadius: 6, padding: "7px 11px", fontSize: 14, minWidth: 240, fontFamily: "DM Sans, sans-serif" }}
-            />
-            <button onClick={() => testKey(keyInput)} style={{ ...clockBtn, color: COLORS.cream }}>Test key</button>
-            <button onClick={() => saveKey(keyInput)} style={{ ...clockBtn, color: COLORS.cream }}>Use this key</button>
-            {secret && <span style={{ fontWeight: 400, fontSize: 12, opacity: 0.85 }}>current key length: {secret.length}</span>}
-            {keyTest && <span style={{ fontWeight: 400, fontSize: 13 }}>{keyTest}</span>}
-          </div>
+          ⚠️ {sync.msg}
         </div>
       )}
       {sync.state === "ok" && (
@@ -2003,6 +2152,7 @@ export default function App() {
   const [error, setError] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const countdown = useCountdown();
+  const auth = useDraftAuth();
 
   useEffect(() => {
     fetch("/api/sheet")
@@ -2031,7 +2181,7 @@ export default function App() {
     if (loading) {
       return <div style={{ minHeight: "100vh", background: COLORS.bg, color: COLORS.tan, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, fontFamily: "Playfair Display, serif" }}>Loading the board…</div>;
     }
-    return <BigBoard players={data.players} />;
+    return <BigBoard players={data.players} auth={auth} />;
   }
 
   const tabs = [
@@ -2042,6 +2192,7 @@ export default function App() {
     { id: "itinerary", label: "📅 Itinerary" },
     { id: "points", label: "🏅 Points" },
     { id: "rules", label: "📖 Rules" },
+    { id: "commish", label: "🔒 Commish" },
     { id: "tripdetails", label: "🗺️ Trip Details" },
     { id: "news", label: "📰 News" },
     { id: "history", label: "🏛️ History" },
@@ -2105,6 +2256,7 @@ export default function App() {
             {activeTab === "draftboard" && <DraftBoardPage players={data.players} draft={data.draft} />}
             {activeTab === "teams" && <TeamsPage players={data.players} draft={data.draft} />}
             {activeTab === "rules" && <RulesPage />}
+            {activeTab === "commish" && <CommishToolsPage auth={auth} draft={data.draft} />}
             {activeTab === "players" && <PlayersPage players={data.players} />}
             {activeTab === "itinerary" && <ItineraryPage tripInfo={data.tripInfo} />}
             {activeTab === "points" && <PointsPage matches={data.matches} />}
