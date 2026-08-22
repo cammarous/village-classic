@@ -122,10 +122,18 @@ export default async function handler(req, res) {
 
     // Accepts either DRAFT_PASSWORD (a memorable one you choose, used by the
     // Big Board lock screen) or the original PUBLISH_SECRET.
-    const secret = req.headers["x-publish-secret"] || req.body?.secret;
-    const accepted = [process.env.DRAFT_PASSWORD, process.env.PUBLISH_SECRET].filter(Boolean);
+    // Trimmed on both sides — pasting into Vercel very often carries a trailing
+    // newline or space, which would otherwise fail an exact comparison.
+    const secret = String(req.headers["x-publish-secret"] || req.body?.secret || "").trim();
+    const accepted = [process.env.DRAFT_PASSWORD, process.env.PUBLISH_SECRET]
+      .filter(Boolean).map((v) => String(v).trim());
     if (!accepted.length || !accepted.includes(secret)) {
-      return res.status(401).json({ error: "Unauthorized" });
+      return res.status(401).json({
+        error: "Unauthorized",
+        hint: !accepted.length
+          ? "No DRAFT_PASSWORD or PUBLISH_SECRET is set on the server"
+          : "Password did not match",
+      });
     }
 
     // Password check for the lock screen — writes nothing.
