@@ -1780,14 +1780,18 @@ function useDraftAuth() {
   const [checking, setChecking] = useState(false);
 
   async function check(candidate) {
-    const r = await fetch("/api/draftpicks", {
+    const r = await fetch("/api/draftpicks?verify=1", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-publish-secret": candidate },
       body: JSON.stringify({ verify: true }),
     });
+    // 401 is the ONLY definitive rejection. A 400 means the request got past
+    // auth and merely failed validation — which still proves the password is
+    // right, so don't lock the commissioner out over it.
     if (r.status === 401) throw new Error("Wrong password");
-    if (!r.ok) throw new Error(`Server error ${r.status}`);
-    return true;
+    if (r.ok || r.status === 400) return true;
+    const body = await r.text().catch(() => "");
+    throw new Error(`Server said ${r.status}. ${body.slice(0, 120)}`);
   }
 
   // Re-verify anything stored, so a changed password locks you out up front
