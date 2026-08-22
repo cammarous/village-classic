@@ -12,6 +12,7 @@ import { google } from "googleapis";
 
 const SHEET_ID = "19xwerN5gm34zoz138GCESbn14ORTys6QTmJ4pi-7HCY";
 const TAB = "DraftPicks";
+const MATCHES_TAB = "Matches";
 
 function sheetsClient() {
   const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
@@ -39,6 +40,8 @@ export default async function handler(req, res) {
         endpointDeployed: true,
         GOOGLE_API_KEY_set: !!process.env.GOOGLE_API_KEY,
         PUBLISH_SECRET_set: !!process.env.PUBLISH_SECRET,
+        DRAFT_PASSWORD_set: !!process.env.DRAFT_PASSWORD,
+        DRAFT_PASSWORD_length: process.env.DRAFT_PASSWORD ? process.env.DRAFT_PASSWORD.length : 0,
         PUBLISH_SECRET_length: process.env.PUBLISH_SECRET ? process.env.PUBLISH_SECRET.length : 0,
         GOOGLE_SERVICE_ACCOUNT_KEY_set: !!process.env.GOOGLE_SERVICE_ACCOUNT_KEY,
         serviceAccountEmail: null,
@@ -117,17 +120,34 @@ export default async function handler(req, res) {
 
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
+    // Accepts either DRAFT_PASSWORD (a memorable one you choose, used by the
+    // Big Board lock screen) or the original PUBLISH_SECRET.
     const secret = req.headers["x-publish-secret"] || req.body?.secret;
-    if (!process.env.PUBLISH_SECRET || secret !== process.env.PUBLISH_SECRET) {
+    const accepted = [process.env.DRAFT_PASSWORD, process.env.PUBLISH_SECRET].filter(Boolean);
+    if (!accepted.length || !accepted.includes(secret)) {
       return res.status(401).json({ error: "Unauthorized" });
     }
+
+    // Password check for the lock screen — writes nothing.
+    if (req.body?.verify) return res.status(200).json({ ok: true });
 
     const sheets = sheetsClient();
 
     // ── Reset ────────────────────────────────────────────────────────────────
+    // Clears the draft AND every match result, so a practice run leaves nothing
+    // behind. The Matches tab keeps its Session/Match rows — only the columns
+    // you fill in during the trip (John, Brian, Winner, PuttOff) are wiped.
     if (req.body?.reset) {
+      const cleared = { draftPicks: false, matchResults: false };
       await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: `${TAB}!A2:D10000` });
-      return res.status(200).json({ ok: true, reset: true });
+      cleared.draftPicks = true;
+      try {
+        await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: `${MATCHES_TAB}!C2:F10000` });
+        cleared.matchResults = true;
+      } catch (e) {
+        console.warn(`draftpicks reset: could not clear ${MATCHES_TAB} — ${e.message}`);
+      }
+      return res.status(200).json({ ok: true, reset: true, cleared });
     }
 
     // ── Append a pick ────────────────────────────────────────────────────────
