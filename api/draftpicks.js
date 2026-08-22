@@ -137,7 +137,9 @@ export default async function handler(req, res) {
     }
 
     // Password check for the lock screen — writes nothing.
-    if (req.body?.verify) return res.status(200).json({ ok: true });
+    // Accepts ?verify=1 as well as a JSON body, because body parsing is the one
+    // part of this request I can't guarantee; query and headers always arrive.
+    if (req.query?.verify || req.body?.verify) return res.status(200).json({ ok: true });
 
     const sheets = sheetsClient();
 
