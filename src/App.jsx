@@ -21,10 +21,13 @@ const COURSES = [
   { name: "Copper Rock Golf Course", day: "Sunday", lat: 37.1107265, lng: -113.3186842, placeId: "ChIJ2aUnrmH3yoAR664s0a5tBlU" },
 ];
 
+// Dinners deliberately are NOT listed here any more. Meals live in the TripInfo
+// sheet tab under Section "Food", labelled by weekday, and the Itinerary reads
+// them from there — so changing dinner is a sheet edit, not a deploy.
 const SCHEDULE = [
-  { day: "Thu Sep 3", events: ["4:00 PM — Airbnb Check-in", "7:30 PM — Live Team Draft", "8:30 PM — Baseball (1pt)", "Dinner"] },
-  { day: "Fri Sep 4", events: ["Coral Canyon Golf Course", "8:30 AM — 2v2 Matchplay (4pts)", "2:40 PM — 2v2 Scramble (4pts)", "Dinner at Home"] },
-  { day: "Sat Sep 5", events: ["Sand Hollow Resort", "7:40 AM — 2v2 Matchplay (4pts)", "3:00 PM — Modified Alternate Shot (4pts)", "Dinner"] },
+  { day: "Thu Sep 3", events: ["4:00 PM — Airbnb Check-in", "7:30 PM — Live Team Draft", "8:30 PM — Baseball (1pt)"] },
+  { day: "Fri Sep 4", events: ["Coral Canyon Golf Course", "8:30 AM — 2v2 Matchplay (4pts)", "2:40 PM — 2v2 Scramble (4pts)"] },
+  { day: "Sat Sep 5", events: ["Sand Hollow Resort", "7:40 AM — 2v2 Matchplay (4pts)", "3:00 PM — Modified Alternate Shot (4pts)"] },
   { day: "Sun Sep 6", events: ["Copper Rock Golf Course", "9:36 AM — Championship 1v1 Matchplay (8pts)", "Championship Award"] },
   { day: "Mon Sep 7", events: ["10:00 AM — Airbnb Checkout", "Depart"] },
 ];
@@ -56,6 +59,7 @@ const TRIP_TIMELINE = [
 const TRIPINFO_ICONS = {
   "The House": "🏡", "Arrivals & Rides": "🚗", "Money": "💵", "Food": "🍽️",
   "Weather": "🌵", "Contacts": "📞", "Course Notes": "⛳", "Local Knowledge": "🗺️",
+  "Flights": "✈️", "Drive Times": "🚙",
 };
 
 const PACKING_LIST = [
@@ -1052,6 +1056,73 @@ function driveTimeFor(tripInfo, courseName) {
   return hit ? hit.value : null;
 }
 
+// ── Itinerary <- TripInfo lookups ────────────────────────────────────────────
+// Meals and flights are sheet-driven for the same reason drive times are: Cam
+// edits the TripInfo tab from his phone and every page follows without a deploy.
+function tripSection(tripInfo, name) {
+  return (tripInfo || []).find(
+    (x) => (x.name || "").trim().toLowerCase() === name.toLowerCase()
+  ) || null;
+}
+
+// SCHEDULE days read "Thu Sep 3". Food rows are labelled by full weekday
+// ("Thursday"); Flights rows by abbreviation ("Thu — Las Vegas"). Match both.
+const DAY_FULL = { Thu: "Thursday", Fri: "Friday", Sat: "Saturday", Sun: "Sunday", Mon: "Monday" };
+
+function dayItems(tripInfo, sectionName, dayLabel) {
+  const sec = tripSection(tripInfo, sectionName);
+  if (!sec) return [];
+  const abbr = (dayLabel || "").split(" ")[0];
+  const full = (DAY_FULL[abbr] || "").toLowerCase();
+  return sec.items.filter((it) => {
+    const l = (it.label || "").trim().toLowerCase();
+    if (!l) return false;
+    return (full && l === full) || l.startsWith(abbr.toLowerCase() + " ");
+  });
+}
+
+// Meals and flights for one schedule day. Renders nothing when the sheet has
+// no rows for that day, so the card looks exactly as it did before.
+function DayLogistics({ tripInfo, dayLabel }) {
+  const meals = dayItems(tripInfo, "Food", dayLabel);
+  const flights = dayItems(tripInfo, "Flights", dayLabel);
+  if (!meals.length && !flights.length) return null;
+  return (
+    <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${COLORS.border}`, display: "flex", flexDirection: "column", gap: 8 }}>
+      {meals.map((it, i) => (
+        <div key={`meal-${i}`} style={{ color: COLORS.creamDim, fontSize: 13.5, display: "flex", gap: 8, alignItems: "flex-start" }}>
+          <span style={{ marginTop: 1 }}>🍽️</span>
+          <span><LinkedValue text={it.value} /></span>
+        </div>
+      ))}
+      {flights.map((it, i) => (
+        <div key={`flight-${i}`} style={{ color: COLORS.creamDim, fontSize: 13.5, display: "flex", gap: 8, alignItems: "flex-start" }}>
+          <span style={{ marginTop: 1 }}>✈️</span>
+          <span><strong style={{ color: COLORS.cream }}>{it.label}</strong> — <LinkedValue text={it.value} /></span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Wednesday arrivals belong to no schedule day, and the car assignments apply to
+// the whole trip — so both render in full below the day-by-day, reusing the same
+// card the Trip Details page uses.
+function TravelBlock({ tripInfo }) {
+  const rides = tripSection(tripInfo, "Arrivals & Rides");
+  const flights = tripSection(tripInfo, "Flights");
+  if (!rides && !flights) return null;
+  return (
+    <>
+      <h2 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 14 }}>✈️ Getting There &amp; Home</h2>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16, marginBottom: 40 }}>
+        {rides && <TripInfoCard section={rides} />}
+        {flights && <TripInfoCard section={flights} />}
+      </div>
+    </>
+  );
+}
+
 function ItineraryPage({ tripInfo }) {
   return (
     <div style={{ color: COLORS.cream }}>
@@ -1069,9 +1140,11 @@ function ItineraryPage({ tripInfo }) {
                 </div>
               ))}
             </div>
+            <DayLogistics tripInfo={tripInfo} dayLabel={day.day} />
           </div>
         ))}
       </div>
+      <TravelBlock tripInfo={tripInfo} />
       <h2 style={{ fontFamily: "Playfair Display, serif", color: COLORS.tan, marginBottom: 14 }}>⛳ Courses</h2>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16, marginBottom: 40 }}>
         {COURSES.map((c) => (
